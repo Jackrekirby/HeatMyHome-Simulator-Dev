@@ -1,0 +1,63 @@
+em++ "C:\dev\WebAssembly\hello.cpp" -o function.html -s EXPORTED_FUNCTIONS=["_int_sqrt"] -s EXPORTED_RUNTIME_METHODS=["ccall","cwrap"]
+
+em++ "C:\dev\WebAssemblyTesting\WebAssemblyTesting.cpp" -o function.html -s EXPORTED_FUNCTIONS=["_int_sqrt"] -s EXPORTED_RUNTIME_METHODS=["ccall","cwrap"] --preload-file input.txt
+
+em++ "C:\dev\WebAssemblyTesting\WebAssemblyTesting.cpp" -o function.html -s EXPORTED_FUNCTIONS=["_int_sqrt","_print_file","_get_message"] -s EXPORTED_RUNTIME_METHODS=["ccall","cwrap"] --preload-file assets
+
+em++ "C:\dev\WebAssemblyTesting\animal.cpp" "C:\dev\WebAssemblyTesting\WebAssemblyTesting.cpp" -o "C:\dev\WebAssembly\function.js" -s EXPORTED_FUNCTIONS=["_int_sqrt","_print_file","_get_message"] -s EXPORTED_RUNTIME_METHODS=["ccall","cwrap"] --preload-file "C:\dev\WebAssemblyTesting\assets" -s LLD_REPORT_UNDEFINED
+
+// return string https://gist.github.com/ingride/7bb61483127d1f6d85a35d772b589090
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+auto emcc caller / bat / python file which loads from text file
+be able to specify location of preload files
+save the data, js, and wasm files in correct place
+auto insert js into single file
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+function submitNumber() {
+  let n = document.getElementById('number').value;
+  console.log(n);
+
+  let address = document.getElementById('address').value;
+  console.log(address);
+
+  var result = Module.ccall('int_sqrt', // name of C function
+    'number', // return type
+    ['number'], // argument types
+    [n]); // arguments
+
+  var result = Module.ccall('print_file', // name of C function
+    'number', // return type
+    ['string'], // argument types
+    [address]); // arguments
+
+  var result = Module.ccall('get_message', // name of C function
+    'string', // return type
+    ['number'], // argument types
+    [1]); // arguments
+  console.log(result.split(",").map(Number));
+}
+
+// https://zetcode.com/javascript/jsonurl/
+function getJSON(url, callback) {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', url, true);
+  xhr.responseType = 'json';
+
+  xhr.onload = function () {
+
+    var status = xhr.status;
+
+    if (status == 200) {
+      callback(null, xhr.response);
+    } else {
+      callback(status);
+    }
+  };
+  xhr.send();
+};
+
