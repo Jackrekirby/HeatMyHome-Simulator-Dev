@@ -33,7 +33,7 @@ batch_file = 'archive\\call_empp.bat'
 # javascript file merge inputs
 js_merge_file = 'index.js'
 js_files = ['extra.js', web_file]
-just_js = True
+just_js = False
 
 # ____ AUTOMATED ________________________________________________________
 
@@ -45,24 +45,24 @@ if not just_js:
     for file in cpp_files:
         cmd += f'"{cpp_dir}{file}" '
 
-        cmd += f'-o "{web_dir}{web_file}" '
+    cmd += f'-o "{web_dir}{web_file}" '
 
-        cmd += f'-s EXPORTED_FUNCTIONS=['
+    cmd += f'-s EXPORTED_FUNCTIONS=['
 
-        for i, fnc in enumerate(exported_functions):
-            cmd += f'"_{fnc}"'
-            if i + 1 < len(exported_functions):
-                cmd += ','
+    for i, fnc in enumerate(exported_functions):
+        cmd += f'"_{fnc}"'
+        if i + 1 < len(exported_functions):
+            cmd += ','
 
-            cmd += f'] -s EXPORTED_RUNTIME_METHODS=['
+    cmd += f'] -s EXPORTED_RUNTIME_METHODS=['
 
-        for i, method in enumerate(exported_runtime_methods):
-            cmd += f'"{method}"'
-            if i + 1 < len(exported_runtime_methods):
-                cmd += ','
+    for i, method in enumerate(exported_runtime_methods):
+        cmd += f'"{method}"'
+        if i + 1 < len(exported_runtime_methods):
+            cmd += ','
 
-            cmd += f'] --preload-file "{cpp_dir}{cpp_preload_file}@{virtual_preload_file}" '
-            cmd += '-s LLD_REPORT_UNDEFINED'
+    cmd += f'] --preload-file "{cpp_dir}{cpp_preload_file}@{virtual_preload_file}" '
+    cmd += '-s LLD_REPORT_UNDEFINED'
 
     print(cmd)
 

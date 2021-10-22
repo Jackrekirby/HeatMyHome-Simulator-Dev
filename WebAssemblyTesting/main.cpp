@@ -67,7 +67,7 @@ extern "C" {
         return 0;
     }
 
-    int print_example_file() {
+    int print_example_file(int x) {
         std::cout << "calling print_example_file" << "\n";
         std::string filename = "assets/input.txt";
 
@@ -98,7 +98,7 @@ int main()
     std::cout << "Water and Space Heating (WASH) Simulator\n";
     std::cout << int_sqrt(100) << '\n';
     call_class(67);
-    print_example_file();
+    print_example_file(0);
     print_outside_temps("lat_50.0_lon_-3.5");
     std::cout << return_vector(0) << '\n';
 
