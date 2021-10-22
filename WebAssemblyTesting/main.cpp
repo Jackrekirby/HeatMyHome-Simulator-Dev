@@ -30,9 +30,8 @@ std::vector<float> importDataFile(std::string filename) {
     return data;
 }
 
-void print_file_c(const char* filename_char) {
+void print_outside_temps_c(const char* filename_char) {
     std::string filename(filename_char);
-    std::cout << filename << "\n";
     filename = "assets/outside_temps/" + filename + ".csv";
     std::cout << filename << "\n";
     std::vector<float> data = importDataFile(filename);
@@ -42,7 +41,7 @@ void print_file_c(const char* filename_char) {
     std::cout << "\n";
 }
 
-std::string return_vector(std::vector<float> vec) {
+std::string vec2str(const std::vector<float>& vec) {
     std::stringstream ss;
     for (float i : vec) {
         ss << i << ",";
@@ -50,34 +49,26 @@ std::string return_vector(std::vector<float> vec) {
     return ss.str();
 }
 
-extern "C" {
-    inline const char* cstr(const std::string& message) {
-        char* cstr = new char[message.length() + 1];
-        std::strcpy(cstr, message.c_str());
-        return cstr;
-    }
-    
-    const char* get_message(int x) {
-        std::vector<float> vec = { 0.025f, 0.018f, 0.011f, 0.010f, 0.008f, 0.013f, 0.017f, 0.044f, 0.088f, 0.075f, 0.060f, 0.056f, 0.050f, 0.043f, 0.036f, 0.029f, 0.030f, 0.036f, 0.053f, 0.074f, 0.071f, 0.059f, 0.050f, 0.041f };
-        
-        return cstr(return_vector(vec));
-    };
+inline const char* cstr(const std::string& message) {
+    char* cstr = new char[message.length() + 1];
+    std::strcpy(cstr, message.c_str());
+    return cstr;
 }
 
 extern "C" {
+    const char* return_vector(int x) {
+        std::vector<float> vec = { 0.025f, 0.018f, 0.011f, 0.010f, 0.008f, 0.013f, 0.017f, 0.044f, 0.088f, 0.075f, 0.060f, 0.056f, 0.050f, 0.043f, 0.036f, 0.029f, 0.030f, 0.036f, 0.053f, 0.074f, 0.071f, 0.059f, 0.050f, 0.041f };
 
-    int print_file(const char* filename) {
-        print_file_c(filename);
+        return cstr(vec2str(vec));
+    };
+
+    int print_outside_temps(const char* filename) {
+        print_outside_temps_c(filename);
         return 0;
     }
 
-    double int_sqrt(int x)
-    {
-        std::cout << "called int_sqrt"
-            << "\n";
-
-        Animal dear(x);
-
+    int print_example_file() {
+        std::cout << "calling print_example_file" << "\n";
         std::string filename = "assets/input.txt";
 
         std::ifstream file2(filename);
@@ -86,14 +77,18 @@ extern "C" {
         {
             std::cout << str << "\n";
         }
+        return 0;
+    }
 
-        //print_file("lat_50.0_lon_-3.5");
-        //std::vector<float> data = importDataFile("assets/array_data.csv");
-        //for (float i : data) {
-        //    std::cout << i << ", ";
-        //}
-        //std::cout << "\n";
+    int call_class(int x) {
+        std::cout << "calling call_class" << "\n";
+        Animal dear(x);
+        return 0;
+    }
 
+    double int_sqrt(int x)
+    {
+        std::cout << "calling int_sqrt" << "\n";
         return std::sqrt(x);
     }
 }
@@ -101,6 +96,10 @@ extern "C" {
 int main()
 {
     std::cout << "Water and Space Heating (WASH) Simulator\n";
-    int_sqrt(79);
-    std::cout << get_message(1) << "\n";
+    std::cout << int_sqrt(100) << '\n';
+    call_class(67);
+    print_example_file();
+    print_outside_temps("lat_50.0_lon_-3.5");
+    std::cout << return_vector(0) << '\n';
+
 }

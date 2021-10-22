@@ -9,14 +9,32 @@
   <body>
     <h1>WebAssembly</h1>
     <div>
-      <p>Enter a number</p>
-      <input id="number" type="number" value="5" />
+      <p>Square Root Number</p>
+      <input id="sqrtnum" type="number" value="5" />
+      <button onclick="submitSqrtNum()">Submit</button>
     </div>
+
+    <div>
+      <p>Call Class</p>
+      <input id="callClass" type="number" value="2" />
+      <button onclick="submitCallClass()">Submit</button>
+    </div>
+
+    <div>
+      <p>Print Text File</p>
+      <button onclick="submitPrintTxt()">Submit</button>
+    </div>
+
+    <div>
+      <p>Return Vector</p>
+      <button onclick="submitReturnVector()">Submit</button>
+    </div>
+
     <div>
       <p>Enter address</p>
-      <input id="address" type="text" value="lat_50.5_lon_-1.5" />
+      <input id="latlon" type="text" value="lat_50.5_lon_-1.5" />
+      <button onclick="submitLatLon()">Submit</button>
     </div>
-    <button onclick="submitNumber()">Submit</button>
 
     <div>
       <p>Enter postcode</p>

@@ -1,25 +1,48 @@
-function submitNumber() {
-    let n = document.getElementById('number').value;
-    console.log(n);
+function submitCallClass() {
+    let n = document.getElementById('callClass').value;
+    console.log('input', n);
 
-    let address = document.getElementById('address').value;
-    console.log(address);
-
-    var result = Module.ccall('int_sqrt', // name of C function
+    var result = Module.ccall('call_class', // name of C function
         'number', // return type
         ['number'], // argument types
         [n]); // arguments
 
-    var result = Module.ccall('print_file', // name of C function
-        'number', // return type
-        ['string'], // argument types
-        [address]); // arguments
+    console.log('result', result);
+}
 
-    var result = Module.ccall('get_message', // name of C function
+function submitPrintTxt() {
+    var result = Module.ccall('print_example_file', // name of C function
+        'number', // return type
+        ['number'], // argument types
+        [1]); // arguments]
+}
+
+// https://stackoverflow.com/questions/16396124/how-to-convert-comma-separated-string-into-numeric-array-in-javascript/33890740
+function submitReturnVector() {
+    var result = Module.ccall('return_vector', // name of C function
         'string', // return type
         ['number'], // argument types
-        [1]); // arguments
-    console.log(result.split(",").map(Number));
+        [1]); // arguments]
+    console.log('result', result.split(",").map(Number));
+}
+
+function submitSqrtNum() {
+    let n = document.getElementById('sqrtnum').value;
+    console.log('input', n);
+    var result = Module.ccall('int_sqrt', // name of C function
+        'number', // return type
+        ['number'], // argument types
+        [n]); // arguments
+    console.log('result', result);
+}
+
+function submitLatLon() {
+    let latlon = document.getElementById('latlon').value;
+    console.log('input', latlon);
+    var result = Module.ccall('print_outside_temps', // name of C function
+        'number', // return type
+        ['string'], // argument types
+        [latlon]); // arguments
 }
 
 function submitPostcode() {
