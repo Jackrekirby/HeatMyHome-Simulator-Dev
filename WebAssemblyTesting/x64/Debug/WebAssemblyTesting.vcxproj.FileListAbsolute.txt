@@ -1,2 +1,0 @@
-C:\dev\WebAssemblyTesting\x64\Debug\WebAssemblyTesting.exe
-C:\dev\wasm_website\WebAssemblyTesting\x64\Debug\wash_simulator_cpp.exe
