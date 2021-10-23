@@ -112,3 +112,19 @@ function speedTest() {
 }
 // speedTest();
 // speedTestWasm();
+
+console.defaultLog = console.log.bind(console);
+logs = '';
+console.log = function () {
+    // default &  console.log()
+    console.defaultLog.apply(console, arguments);
+    // new & array data
+    logs += Array.from(arguments).join(' ') + '\n';
+    console.defaultLog.apply(console, [logs]);
+    document.getElementById('console-log').innerHTML = logs;
+}
+
+function clearConsole() {
+    logs = '';
+    document.getElementById('console-log').innerHTML = '';
+}
