@@ -82,3 +82,33 @@ function getJSON(url, callback) {
     };
     xhr.send();
 };
+
+function speedTestWasm() {
+    let n = document.getElementById('speedNum').value
+    let start = performance.now();
+    var result = Module.ccall('speed_test', // name of C function
+        'number', // return type
+        ['number'], // argument types
+        [n]); // arguments
+    let end = performance.now();
+    console.log(result, (end - start) / 1000.0);
+}
+
+function speedTest() {
+    //let n = document.getElementById('speedNumJS').value
+    hours = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
+    total = 0;
+    let start = performance.now();
+    for (let i = 0; i < 100000; ++i) {
+        for (let day = 0; day < 365; ++day) {
+            for (let hour = 0; hour < 24; ++hour) {
+                total += hours[hour];
+            }
+        }
+        //std::cout << total << '\n';
+    }
+    let end = performance.now();
+    console.log(total, (end - start) / 1000.0);
+}
+// speedTest();
+// speedTestWasm();

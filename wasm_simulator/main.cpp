@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <vector>
 #include "animal.h"
+//#include <chrono>
+#include <array>
 
 #pragma warning(disable : 4996)
 #define _CRT_SECURE_NO_WARNINGS
@@ -91,15 +93,38 @@ extern "C" {
         std::cout << "calling int_sqrt" << "\n";
         return std::sqrt(x);
     }
+
+    int speed_test(int x) {
+        const std::array<const int, 24> hours = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24 };
+        long long int total = 0;
+        //auto t1 = std::chrono::high_resolution_clock::now();
+
+        for (int i = 0; i < 100000; ++i) {
+            for (int day = 0; day < 365; ++day) {
+                for (int hour = 0; hour < 24; ++hour) {
+                    total += hours.at(hour) + x;
+
+                }
+            }
+            //std::cout << total << '\n';
+        }
+        std::cout << total << '\n';
+        
+        //auto t2 = std::chrono::high_resolution_clock::now();
+        //std::cout << total << ' ' << duration_cast<std::chrono::milliseconds>(t2 - t1) / 1000.0;
+        return 0;
+    }
 }
+
+
 
 int main()
 {
-    std::cout << "Water and Space Heating (WASH) Simulator\n";
-    std::cout << int_sqrt(100) << '\n';
-    call_class(67);
-    print_example_file(0);
-    print_outside_temps("lat_50.0_lon_-3.5");
-    std::cout << return_vector(0) << '\n';
-
+    //std::cout << "Water and Space Heating (WASH) Simulator\n";
+    //std::cout << int_sqrt(100) << '\n';
+    //call_class(67);
+    //print_example_file(0);
+    //print_outside_temps("lat_50.0_lon_-3.5");
+    //std::cout << return_vector(0) << '\n';
+    speed_test(1);
 }

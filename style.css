@@ -1,5 +1,11 @@
 @import url("https://fonts.googleapis.com/css2?family=Sora&display=swap");
 
+:root {
+  --dark-clr: rgb(12, 37, 47);
+  --med-clr: rgb(40, 60, 80);
+  --light-clr: rgb(189, 221, 255);
+}
+
 body {
   display: flex;
   flex-direction: column;
@@ -9,18 +15,92 @@ body {
 }
 
 * {
-  background-color: darkslategray;
+  background-color: var(--dark-clr);
   color: floralwhite;
   font-family: "Sora", sans-serif;
-  font-size: 1.5rem;
-  margin: 0.5rem;
+  padding: 0rem;
+  margin: 0rem;
 }
 
-div {
+h1 {
+  margin: 1.5rem 1rem 2rem 1rem;
+}
+
+input {
+  border: 1px solid var(--light-clr);
+  background-color: var(--med-clr);
+  color: var(--light-clr);
+  height: 2rem;
+  margin: 0rem 0.25rem;
+  width: 10rem;
+  text-align: center;
+}
+
+textarea {
+  width: 100%;
+  height: 10rem;
+}
+
+input:focus {
+  outline: none;
+  background-color: var(--light-clr);
+  color: var(--dark-clr);
+}
+
+/* Chrome, Safari, Edge, Opera */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+button {
+  border: 1px solid var(--light-clr);
+  background-color: var(--med-clr);
+  color: var(--light-clr);
+  margin: 0rem 0.25rem;
+}
+
+.flex-row button {
+  width: 2rem;
+  height: 2rem;
+}
+
+.clear-console {
+  padding: 0.5rem 1rem;
+  margin: 1rem 0rem;
+  width: 100%;
+}
+
+button:active {
+  outline: none;
+  background-color: var(--light-clr);
+  color: var(--dark-clr);
+}
+
+.flex-row {
   display: flex;
   flex-direction: row;
   text-align: center;
   align-items: center;
   align-content: center;
-  justify-content: space-between;
+  justify-content: space-around;
+}
+
+p {
+  margin: 1rem 0rem 1rem 0rem;
+}
+
+.flex-row > p {
+  width: 10rem;
+  margin: 1rem 0.25 1rem 0.25rem;
+}
+
+.main-page {
+  width: min(90%, 768px);
 }
