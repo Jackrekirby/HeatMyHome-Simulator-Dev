@@ -12,7 +12,7 @@
 #pragma warning(disable : 4996)
 #define _CRT_SECURE_NO_WARNINGS
 
-//#define USING_EMSCRIPTEN_MACRO
+#define USING_EMSCRIPTEN_MACRO
 
 #ifndef USING_EMSCRIPTEN_MACRO
 #include <chrono>
@@ -567,7 +567,7 @@ public:
             const float epc_optimal_heating_demand_diff = std::abs(epc_space_heating - optimised_epc_demand);
             const float epc_heating_demand_diff = std::abs(epc_space_heating - epc_demand);
 
-            std::cout << epc_space_heating << ' ' << optimised_epc_demand << ' ' << epc_demand << '\n';
+            // std::cout << epc_space_heating << ' ' << optimised_epc_demand << ' ' << epc_demand << '\n';
 
             if (epc_heating_demand_diff < epc_optimal_heating_demand_diff) {
                 optimised_epc_demand = epc_demand;
