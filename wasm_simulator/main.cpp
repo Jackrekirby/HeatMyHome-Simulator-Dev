@@ -88,7 +88,7 @@ public:
 
     static constexpr std::array<int, 24> epc_temp_profile_summer = { 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7 };
     static constexpr std::array<int, 24> epc_temp_profile_weekend = { 7, 7, 7, 7, 7, 7, 7, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20 };
-    static constexpr std::array<int, 24> epc_temp_profile_other = { 7, 7, 7, 7, 7, 7, 7, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20 };
+    static constexpr std::array<int, 24> epc_temp_profile_other = { 7, 7, 7, 7, 7, 7, 7, 20, 20, 20, 7, 7, 7, 7, 7, 7, 20, 20, 20, 20, 20, 20, 20, 20 };
 
     // run time constants
     const std::array<float, 24> temp_profile;
@@ -217,6 +217,9 @@ public:
         //fmt::print("incident_irradiances_sg_north: {}\n", printArray(incident_irradiances_sg_north));
         //fmt::print("solar_gains_north: {}\n", printArray(solar_gains_north));
 
+        std::cout << "epc_outside_temp: " << printArray(epc_outside_temp) << '\n';
+        std::cout << "epc_solar_irradiance: " << printArray(epc_solar_irradiance) << '\n';
+
         std::cout << "solar_gains_north: " << printArray(solar_gains_north) << '\n';
 
         //fmt::print("\n\n");
@@ -232,6 +235,10 @@ public:
         //fmt::print("Boiler Demand\n");
         std::cout << "calcDemandYear boiler" << '\n';
         boiler_demand = calcDemandYear(temp_profile);
+
+        std::cout << "initHeaterTesSettings" << '\n';
+        initHeaterTesSettings();
+        std::cout << "finished sim" << '\n';
     }
 
     std::array<float, 24> initTempProfile(float temp) {
@@ -503,8 +510,11 @@ public:
                 const float space_hr_demand = (desired_temp_current - inside_temp_current) * heat_capacity;
                 inside_temp_current = desired_temp_current;
                 //fmt::print("i{}\n", inside_temp_current);
+                
                 epc_demand += space_hr_demand / 0.9f;
+                
             }
+            //std::cout << epc_demand << '\n';
             //fmt::print("{:.4f}, {:.4f}, {:.4f}\n", heat_flow_out, inside_temp_current, epc_demand);
         }
     }
@@ -525,20 +535,21 @@ public:
             if (month >= 5 && month <= 8) { // summer no heating
                 epc_temp_profile = &epc_temp_profile_summer;
             }
-            else if (day % 7 == 0 or (day + 1) % 7 == 0) { // weekend
+            else if (day % 7 >= 5) { // weekend not summer
                 epc_temp_profile = &epc_temp_profile_weekend;
             }
-            else {
+            else { // weekday not s
                 epc_temp_profile = &epc_temp_profile_other;
             }
 
             calcEpcDay(*epc_temp_profile, inside_temp_current, outside_temp_current, thermal_transmittance_current, solar_gain_south, solar_gain_north, epc_demand);
         }
+        //std::cout << epc_demand << '\n';
     }
 
     void calcEpcYear() {
         float thermal_transmittance = 0.5;
-        float optimised_epc_demand = 3.40282e+038f;
+        float optimised_epc_demand = 0;
 
         constexpr std::array<int, 12> days_in_months = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
@@ -555,6 +566,8 @@ public:
 
             const float epc_optimal_heating_demand_diff = std::abs(epc_space_heating - optimised_epc_demand);
             const float epc_heating_demand_diff = std::abs(epc_space_heating - epc_demand);
+
+            std::cout << epc_space_heating << ' ' << optimised_epc_demand << ' ' << epc_demand << '\n';
 
             if (epc_heating_demand_diff < epc_optimal_heating_demand_diff) {
                 optimised_epc_demand = epc_demand;
@@ -888,6 +901,7 @@ public:
         const float tes_charge_full = tes_volume_current * 1000 * 4.18f * (hot_water_temp - 40) / 3600; // 40 min temp
         const float tes_charge_boost = tes_volume_current * 1000 * 4.18f * (60 - 40) / 3600; //  # kWh, 60C HP with PV boost
         const float tes_charge_max = tes_volume_current * 1000 * 4.18f * (95 - 40) / 3600; //  # kWh, 95C electric and solar
+
         const float tes_charge_min = 10 * 4.18f * (hot_water_temp - 10) / 3600; // 10litres hot min amount
         //CWT coming in from DHW re - fill, accounted for by DHW energy out, DHW min useful temperature 40°C
         //Space heating return temperature would also be ~40°C with flow at 51°C
@@ -1150,10 +1164,12 @@ public:
                 }
             }
 
+            //std::cout << space_hr_demand << ' ' << dhw_hr_demand << ' ' << tes_state_of_charge << '\n';
             float electrical_demand_current;
             // Determines electrical demand for space and dhw demands
             if ((space_hr_demand + dhw_hr_demand) < tes_state_of_charge) {
                 // TES can provide all demand
+                
                 tes_state_of_charge -= (space_hr_demand + dhw_hr_demand);
                 electrical_demand_current = 0;
             }
@@ -1174,11 +1190,11 @@ public:
 
             // Charges TES at off peak electricity times
             if (tes_volume_current > 0 && tes_state_of_charge < tes_charge_full &&
-                (tariff == 0 && 12 < hour && hour < 16) ||
+                ((tariff == 0 && 12 < hour && hour < 16) ||
                 (tariff == 1 && (hour == 23 || hour < 6)) ||
                 (tariff == 2 && 12 < hour && hour < 16) ||
                 (tariff == 3 && 0 <= hour && hour < 5) ||
-                (tariff == 4 && agile_tariff_current < 9.0f)) {
+                (tariff == 4 && agile_tariff_current < 9.0f))) {
                 // Flat rate and smart tariff charges TES at typical day peak air temperature times
                 // GSHP is not affected so can keep to these times too
                 if ((tes_charge_full - tes_state_of_charge) < ((hp_electrical_power - electrical_demand_current) * cop_current)) {
@@ -1315,13 +1331,25 @@ public:
 
         for (const auto& s : optimum_tes_and_tariff_spec) {
             //fmt::print("[ {}, {}, {}, {}, {}, {}, {}, {}, {} ]\n", s.total_operational_cost, s.cap_ex, s.hp_option, s.solar_option, s.pv_size, s.solar_thermal_size, s.tes_volume, s.net_present_cost, s.operation_emissions);
-            std::cout << s.total_operational_cost << ", " << s.cap_ex << ", " << s.hp_option << ", " << s.solar_option << ", " << s.pv_size << "\n";
+            std::cout << s.total_operational_cost << ", " << s.cap_ex << ", " << s.hp_option << ", " << s.solar_option 
+                << ", " << s.pv_size << ", " << s.solar_thermal_size << ", " << s.tes_volume << ", " << s.net_present_cost << ", " << s.operation_emissions << ", " << "\n";
             //fmt::print("total_operational_cost {},\ncap_ex {},\nhp_option {},\nsolar_option {},\npv_size {},\nsolar_thermal_size {},\ntes_volume {},\nnet_present_cost {},\noperation_emissions {} \n\n\n", s.total_operational_cost, s.cap_ex, s.hp_option, s.solar_option, s.pv_size, s.solar_thermal_size, s.tes_volume, s.net_present_cost, s.operation_emissions);
         }
     }
 };
 
 extern "C" {
+    int sim_test_args(const char* postcode_char, float latitude, float longitude, 
+        int num_occupants, float house_size, float temp, int epc_space_heating, float tes_volume_max)
+    {
+        const std::string postcode(postcode_char);
+
+        HeatNinja heat_ninja(num_occupants, postcode, epc_space_heating, house_size,
+            tes_volume_max, temp, latitude, longitude);
+        return 0;
+    }
+
+
     int sim_test()
     {
 #ifndef USING_EMSCRIPTEN_MACRO
@@ -1343,10 +1371,6 @@ extern "C" {
 
         HeatNinja heat_ninja(num_occupants, location, epc_space_heating, house_size,
             tes_volume_max, temp, latitude, longitude);
-
-        std::cout << "initHeaterTesSettings" << '\n';
-        heat_ninja.initHeaterTesSettings();
-        std::cout << "finished sim" << '\n';
 
 
         //fmt::print("Program Completed in {}s\n\n", elapsed_time / 1000000000.0);

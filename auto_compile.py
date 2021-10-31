@@ -30,7 +30,8 @@ web_dir = cwd + ''
 web_file = 'cpp.js'
 
 exported_functions = ['return_vector', 'print_outside_temps',
-                      'print_example_file', 'call_class', 'int_sqrt', 'speed_test', 'sim_test']
+                      'print_example_file', 'call_class', 'int_sqrt',
+                      'speed_test', 'sim_test', 'sim_test_args']
 exported_runtime_methods = ['ccall', 'cwrap']
 
 batch_file = 'archive\\call_empp.bat'

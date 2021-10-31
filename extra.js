@@ -48,6 +48,46 @@ function submitSimTest() {
     console.log(result, (end - start) / 1000.0);
 }
 
+function submitSimulation() {
+    console.log('simulation test');
+
+    let postcode = document.getElementById('sim-postcode').value;
+
+    postcode = postcode.toUpperCase().replace(' ', '');
+    document.getElementById('sim-postcode').value = postcode;
+
+    getJSON('https://api.postcodes.io/postcodes/' + postcode, function (err, data) {
+        if (err != null) {
+            console.error(err);
+        } else {
+            console.log(data);
+            document.getElementById('sim-latitude').value = data.result.latitude;
+            document.getElementById('sim-longitude').value = data.result.longitude;
+            let text =
+                `Postcode: ${data.result.postcode}
+            Longitude: ${data.result.longitude}
+            Latitude: ${data.result.latitude}`
+        }
+    });
+
+    let latitude = document.getElementById('sim-latitude').value;
+    let longitude = document.getElementById('sim-longitude').value;
+    let occupants = document.getElementById('sim-occupants').value;
+    let floor_area = document.getElementById('sim-floor-area').value;
+    let temperature = document.getElementById('sim-temperature').value;
+    let space_heating = document.getElementById('sim-space-heating').value;
+    let tes_max = document.getElementById('sim-tes-max').value;
+
+    let start = performance.now();
+    var result = Module.ccall('sim_test_args', // name of C function
+        'number', // return type
+        ['string', 'number', 'number', 'number', 'number', 'number', 'number', 'number'], // argument types
+        [postcode, latitude, longitude, occupants, floor_area, temperature, space_heating, tes_max]); // arguments
+    console.log('result', result);
+    let end = performance.now();
+    console.log(result, (end - start) / 1000.0);
+}
+
 function submitLatLon() {
     let latlon = document.getElementById('latlon').value;
     console.log('input', latlon);
@@ -55,6 +95,26 @@ function submitLatLon() {
         'number', // return type
         ['string'], // argument types
         [latlon]); // arguments
+}
+
+function getPostcodeInfo() {
+    let postcode = document.getElementById('postcode').value;
+    console.log(postcode);
+
+    getJSON('https://api.postcodes.io/postcodes/' + postcode, function (err, data) {
+        if (err != null) {
+            console.error(err);
+        } else {
+            console.log(data);
+            var text =
+                `Postcode: ${data.result.postcode}
+            Longitude: ${data.result.longitude}
+            Latitude: ${data.result.latitude}`
+
+            console.log(text);
+        }
+    });
+    return null;
 }
 
 function submitPostcode() {
