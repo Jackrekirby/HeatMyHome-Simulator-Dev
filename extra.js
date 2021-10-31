@@ -36,6 +36,18 @@ function submitSqrtNum() {
     console.log('result', result);
 }
 
+function submitSimTest() {
+    console.log('sim test');
+    let start = performance.now();
+    var result = Module.ccall('sim_test', // name of C function
+        'number', // return type
+        [], // argument types
+        []); // arguments
+    console.log('result', result);
+    let end = performance.now();
+    console.log(result, (end - start) / 1000.0);
+}
+
 function submitLatLon() {
     let latlon = document.getElementById('latlon').value;
     console.log('input', latlon);

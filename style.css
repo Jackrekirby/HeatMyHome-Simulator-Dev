@@ -92,7 +92,8 @@ button:active {
   justify-content: space-around;
 }
 
-p {
+p,
+a {
   margin: 1rem 0rem 1rem 0rem;
 }
 
@@ -103,4 +104,31 @@ p {
 
 .main-page {
   width: min(90%, 768px);
+}
+
+h2 {
+  margin: 1rem;
+}
+
+.input-block {
+  border: 1px solid var(--light-clr);
+  margin: 1rem;
+}
+
+a {
+  text-decoration: none;
+}
+
+.input-block button {
+  border: 1px solid var(--light-clr);
+  background-color: var(--med-clr);
+  color: var(--light-clr);
+  padding: 1rem 2rem;
+  margin: 1rem;
+}
+
+.input-block button:hover {
+  border: 1px solid var(--light-clr);
+  background-color: var(--light-clr);
+  color: var(--dark-clr);
 }

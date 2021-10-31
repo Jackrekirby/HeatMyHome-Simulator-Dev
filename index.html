@@ -9,6 +9,54 @@
   <body>
     <div class="main-page">
       <h1>Water & Space Heating (WASH) Simulator</h1>
+      <div class="input-block">
+        <h2>Simulation Parameters</h2>
+
+        <div class="flex-row">
+          <p>PostCode</p>
+          <input id="sim-postcode" type="text" value="CV47AL" />
+        </div>
+        <div class="flex-row">
+          <p>Latitiude</p>
+          <input id="sim-latitude" type="number" value="52.3833" />
+          <p>Longitude</p>
+          <input id="sim-longitude" type="number" value="-1.5833" />
+        </div>
+        <div class="flex-row">
+          <p>Occupants</p>
+          <input id="sim-occupants" type="number" value="2" />
+        </div>
+        <div class="flex-row">
+          <p>Thermostat Temperature</p>
+          <input id="sim-temperature" type="number" value="20.0" />
+        </div>
+
+        <div class="flex-row">
+          <a
+            href="https://find-energy-certificate.digital.communities.gov.uk/find-a-certificate/search-by-postcode"
+            >EPC Space Heating</a
+          >
+          <input id="sim-space-heating" type="number" value="3000" />
+        </div>
+        <div class="flex-row">
+          <a
+            href="https://find-energy-certificate.digital.communities.gov.uk/find-a-certificate/search-by-postcode"
+            >Floor Area (m<sup>2</sup>)</a
+          >
+          <input id="sim-floor-area" type="number" value="60.0" />
+        </div>
+        <div class="flex-row">
+          <p>TES Max (m<sup>3</sup>)</p>
+          <input id="sim-tes-max" type="number" value="0.5" />
+        </div>
+        <button onclick="submitSimulation();">Run Simulation</button>
+      </div>
+
+      <textarea readonly id="console-log">Console logs here ...</textarea>
+      <button class="clear-console" onclick="clearConsole();">
+        Clear Console
+      </button>
+
       <div>
         <p>Square Root Number</p>
         <div class="flex-row">
@@ -67,10 +115,10 @@
         <button onclick="submitReturnVector();">></button>
       </div>
 
-      <textarea readonly id="console-log">Console logs here ...</textarea>
-      <button class="clear-console" onclick="clearConsole();">
-        Clear Console
-      </button>
+      <div class="flex-row">
+        <p>Test Simulation</p>
+        <button onclick="submitSimTest();">></button>
+      </div>
     </div>
     <script src="index.js"></script>
   </body>

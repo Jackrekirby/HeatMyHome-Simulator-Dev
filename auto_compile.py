@@ -21,7 +21,7 @@ cpp_dir = cwd + 'wasm_simulator\\'
 cpp_files = ['animal.cpp', 'main.cpp']
 cpp_preload_file = 'assets'
 virtual_preload_file = 'assets'
-compiler_optimisation = '-O3 '
+compiler_optimisation = '-O3 -std=c++20 '  # '-O3 -g'
 
 emsdk_dir = '..\\emsdk'
 emsdk_env_bat = 'emsdk_env.bat'
@@ -30,7 +30,7 @@ web_dir = cwd + ''
 web_file = 'cpp.js'
 
 exported_functions = ['return_vector', 'print_outside_temps',
-                      'print_example_file', 'call_class', 'int_sqrt', 'speed_test']
+                      'print_example_file', 'call_class', 'int_sqrt', 'speed_test', 'sim_test']
 exported_runtime_methods = ['ccall', 'cwrap']
 
 batch_file = 'archive\\call_empp.bat'
