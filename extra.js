@@ -86,6 +86,18 @@ function submitSimulation() {
     console.log('result', result);
     let end = performance.now();
     console.log(result, (end - start) / 1000.0);
+    // console.log('MARKER 1');
+    // Module.ccall('sim_test_args', // name of C function
+    //     'number', // return type
+    //     ['string', 'number', 'number', 'number', 'number', 'number', 'number', 'number'], // argument types
+    //     [postcode, latitude, longitude, occupants, floor_area, temperature, space_heating, tes_max],
+    //     { async: true }).then(result => {
+    //         console.log('MARKER 3');
+    //         console.log('result', result);
+    //         let end = performance.now();
+    //         console.log(result, (end - start) / 1000.0);
+    //     });
+    // console.log('MARKER 2');
 }
 
 function submitLatLon() {

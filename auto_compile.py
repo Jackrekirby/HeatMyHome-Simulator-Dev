@@ -21,7 +21,7 @@ cpp_dir = cwd + 'wasm_simulator\\'
 cpp_files = ['animal.cpp', 'main.cpp']
 cpp_preload_file = 'assets'
 virtual_preload_file = 'assets'
-compiler_optimisation = '-O3 -std=c++20 '  # '-O3 -g'
+compiler_optimisation = '-O3 -std=c++20 -s ASYNCIFY '  # '-O3 -g'
 
 emsdk_dir = '..\\emsdk'
 emsdk_env_bat = 'emsdk_env.bat'
@@ -39,7 +39,7 @@ batch_file = 'archive\\call_empp.bat'
 # javascript file merge inputs
 js_merge_file = 'index.js'
 js_files = ['extra.js', web_file]
-just_js = False
+just_js = True
 
 # ____ AUTOMATED ________________________________________________________
 
