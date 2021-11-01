@@ -21,7 +21,23 @@ cpp_dir = cwd + 'wasm_simulator\\'
 cpp_files = ['animal.cpp', 'main.cpp']
 cpp_preload_file = 'assets'
 virtual_preload_file = 'assets'
-compiler_optimisation = '-O3 -std=c++20 -s ASYNCIFY '  # '-O3 -g'
+compiler_options = {'optimisation': '-O3', 'version': '-std=c++20',
+                    'debug': '', 'async': ''}
+
+# compiler options
+# optimisation -O3
+# version -std=c++20
+# aync -s ASYNCIFY
+# debug -g
+
+compiler_options_str = ""
+for v in compiler_options.values():
+    if v != '':
+        compiler_options_str += f'{v} '
+if compiler_options_str == "":
+    compiler_options_str = " "
+
+# print(f'|{compiler_options_str}|')
 
 emsdk_dir = '..\\emsdk'
 emsdk_env_bat = 'emsdk_env.bat'
@@ -39,14 +55,14 @@ batch_file = 'archive\\call_empp.bat'
 # javascript file merge inputs
 js_merge_file = 'index.js'
 js_files = ['extra.js', web_file]
-just_js = True
+just_js = False
 
 # ____ AUTOMATED ________________________________________________________
 
 if not just_js:
     print(f' - 4 - Generating Emscripten Command')
 
-    cmd = f'em++ {compiler_optimisation}'
+    cmd = f'em++ {compiler_options_str}'
 
     for file in cpp_files:
         cmd += f'"{cpp_dir}{file}" '

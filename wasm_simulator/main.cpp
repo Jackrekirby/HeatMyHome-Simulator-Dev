@@ -228,14 +228,14 @@ public:
 
         //fmt::print("\n\n");
         //fmt::print("Heat Pump Demand\n");
-        std::cout << "calcDemandYear hp" << '\n';
+        std::cout << "\ncalcDemandYear hp" << '\n';
         hp_demand = calcDemandYear(hp_temp_profile);
 
         //fmt::print("\n\n");
         //fmt::print("Boiler Demand\n");
-        std::cout << "calcDemandYear boiler" << '\n';
+        std::cout << "\ncalcDemandYear boiler" << '\n';
         boiler_demand = calcDemandYear(temp_profile);
-
+        
         std::cout << "initHeaterTesSettings" << '\n';
         initHeaterTesSettings();
         std::cout << "finished sim" << '\n';
@@ -619,16 +619,19 @@ public:
 
             // heat_flow_out in kWh, +ve means heat flows out of building, -ve heat flows into building
             inside_temp_current += (-heat_loss + solar_gain_south + solar_gain_north + body_heat_gain) / heat_capacity;
+            
+            float space_hr_demand = 0;
             if (inside_temp_current < desired_temp_current) {  //  Requires heating
-                const float space_hr_demand = (desired_temp_current - inside_temp_current) * heat_capacity;
+                space_hr_demand = (desired_temp_current - inside_temp_current) * heat_capacity;
                 inside_temp_current = desired_temp_current;
                 //fmt::print("i{}\n", inside_temp_current);
-
-                const float hourly_demand = dhw_hr_demand + space_hr_demand;
-                max_hourly_demand = std::max(max_hourly_demand, hourly_demand);
-                demand_total += hourly_demand;
-                dhw_total += dhw_hr_demand;
             }
+
+            //std::cout << hour << ' ' << space_hr_demand << ' ' << demand_total - dhw_hr_demand << '\n';
+            const float hourly_demand = dhw_hr_demand + space_hr_demand;
+            max_hourly_demand = std::max(max_hourly_demand, hourly_demand);
+            demand_total += hourly_demand;
+            dhw_total += dhw_hr_demand;
             //fmt::print("{:.4f}, {:.4f}, {:.4f}, {:.4f}, {:.4f}, {:.4f}\n", heat_loss, inside_temp_current, demand_total, dhw_total, dhw_hr_demand, solar_irradiance_current);
         }
     }
@@ -637,10 +640,11 @@ public:
         const float dhw_mf_current = dhw_monthly_factor.at(month);
         const float cwt_current = cold_water_temp.at(month);
         const float ratio_sg_south = ratios_sg_south.at(month);
-        const float ratio_sg_north = ratios_sg_south.at(month);
+        const float ratio_sg_north = ratios_sg_north.at(month);
 
         for (size_t day = 0; day < num_days; ++day) {
             //fmt::print("day: {}", day);
+            //std::cout << day << '\n';
             calcDemandDay(temp_profile, inside_temp_current, ratio_sg_south, ratio_sg_north, cwt_current, dhw_mf_current, demand_total, dhw_total, max_hourly_demand);
         }
     }
@@ -663,14 +667,16 @@ public:
         int month = 0;
         for (int days_in_month : days_in_months) {
             //fmt::print("month: {}", month);
+            //std::cout << "m " << month << '\n';
             calcDemandMonth(month, days_in_month, temp_profile, inside_temp_current, demand_total, dhw_total, max_hourly_demand);
             ++month;
         }
 
         const float space_demand = demand_total - dhw_total;
-        std::cout << "Space demand: " + to_string_with_precision(space_demand, 2) << +" kWh\n";
-        std::cout << "Space demand: " + to_string_with_precision(demand_total, 2) << +" kWh\n";
-        std::cout << "Max hourly demand: " + to_string_with_precision(max_hourly_demand, 2) << +" kWh\n";
+        std::cout << "Yearly Hot Water Demand: " + to_string_with_precision(dhw_total, 4) << +" kWh\n";
+        std::cout << "Yearly Space demand: " + to_string_with_precision(space_demand, 4) << +" kWh\n";
+        std::cout << "Yearly Total demand: " + to_string_with_precision(demand_total, 4) << +" kWh\n";
+        std::cout << "Max hourly demand: " + to_string_with_precision(max_hourly_demand, 4) << +" kWh\n";
         //fmt::print("Space demand: {:.2f} kWh\n", space_demand);
         //fmt::print("Yearly total thermal demand: {:.2f} kWh\n", demand_total);
         //fmt::print("Max hourly demand: {:.2f} kWh\n", max_hourly_demand);
@@ -851,7 +857,7 @@ public:
             else if (solar_option == 4 || solar_option == 5) {
                 solar_size_range -= 1;
             }
-            std::cout << "solar_option" << solar_option << "\n";
+            //std::cout << "solar_option" << solar_option << "\n";
             //fmt::print("    solar_option {}\n", solar_option);
             SolarSizeLoop(hp_option, solar_option, solar_size_range, optimum_tes_npc, solar_maximum, tes_range, cop_worst, hp_electrical_power, ground_temp, current_tes_and_tariff_specs, temp_profile);
             optimum_tes_and_tariff_spec.at(static_cast<size_t>(solar_option) + static_cast<size_t>(hp_option * 7)) = current_tes_and_tariff_specs;

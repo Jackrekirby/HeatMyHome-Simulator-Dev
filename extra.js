@@ -1,3 +1,91 @@
+console.defaultLog = console.log.bind(console);
+logs = '';
+console.log = function () {
+    // default &  console.log()
+    console.defaultLog.apply(console, arguments);
+    // new & array data
+    logs += Array.from(arguments).join(' ') + '\n';
+    //console.defaultLog.apply(console, [logs]);
+    document.getElementById('console-log').innerHTML = logs;
+}
+
+function clearConsole() {
+    logs = '';
+    document.getElementById('console-log').innerHTML = '';
+}
+
+api_search = {
+    postcode: "CV47AL", latitude: 52.3833, longitude: -1.5833, occupants: 2,
+    temperature: 20.0, space_heating: 3000, floor_area: 60.0, tes_max: 0.5
+};
+loadURLParams();
+
+function updateURLParams() {
+    search = Array();
+    console.log('new url params:', api_search);
+    for (const [key, value] of Object.entries(api_search)) {
+        search.push(`${key}=${value}`);
+    }
+    console.log('new url params string:', search.join('&'));
+
+    window.history.replaceState({}, '', `?${search.join('&')}`);
+}
+
+function loadURLParams() {
+    console.log('current url parms string:', window.location.search);
+    const urlParams = new URLSearchParams(window.location.search);
+    console.log(urlParams.get('postcode'), urlParams.get('longitude'))
+
+    postcode = urlParams.get('postcode');
+    if (postcode != null) {
+        document.getElementById('sim-postcode').value = postcode;
+        api_search.postcode = postcode;
+    }
+
+    latitude = urlParams.get('latitude');
+    if (latitude != null) {
+        document.getElementById('sim-latitude').value = latitude;
+        api_search.latitude = latitude;
+    }
+
+    longitude = urlParams.get('longitude');
+    if (longitude != null) {
+        document.getElementById('sim-longitude').value = longitude;
+        api_search.longitude = longitude;
+    }
+
+    occupants = urlParams.get('occupants');
+    if (occupants != null) {
+        document.getElementById('sim-occupants').value = occupants;
+        api_search.occupants = occupants;
+    }
+
+    temperature = urlParams.get('temperature');
+    if (temperature != null) {
+        document.getElementById('sim-temperature').value = temperature;
+        api_search.temperature = temperature;
+    }
+
+    space_heating = urlParams.get('space_heating');
+    if (space_heating != null) {
+        document.getElementById('sim-space-heating').value = space_heating;
+        api_search.space_heating = space_heating;
+    }
+
+    floor_area = urlParams.get('floor_area');
+    if (floor_area != null) {
+        document.getElementById('sim-floor-area').value = floor_area;
+        api_search.floor_area = floor_area;
+    }
+
+    tes_max = urlParams.get('tes_max');
+    if (tes_max != null) {
+        document.getElementById('sim-tes-max').value = tes_max;
+        api_search.tes_max = tes_max;
+    }
+    updateURLParams();
+}
+
 function submitCallClass() {
     let n = document.getElementById('callClass').value;
     console.log('input', n);
@@ -196,19 +284,3 @@ function speedTest() {
 }
 // speedTest();
 // speedTestWasm();
-
-console.defaultLog = console.log.bind(console);
-logs = '';
-console.log = function () {
-    // default &  console.log()
-    console.defaultLog.apply(console, arguments);
-    // new & array data
-    logs += Array.from(arguments).join(' ') + '\n';
-    console.defaultLog.apply(console, [logs]);
-    document.getElementById('console-log').innerHTML = logs;
-}
-
-function clearConsole() {
-    logs = '';
-    document.getElementById('console-log').innerHTML = '';
-}
