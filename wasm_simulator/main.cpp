@@ -192,7 +192,7 @@ public:
         //fmt::print("Latitude: {}\n", latitude);
         //fmt::print("Longitude: {}\n", longitude);
 
-        std::cout << "Longitude: " << longitude << '\n';
+        //std::cout << "Longitude: " << longitude << '\n';
 
         //fmt::print("Temp Profile: {}\n", printArray(temp_profile));
         //fmt::print("HP Temp Profile: {}\n", printArray(hp_temp_profile));
@@ -217,28 +217,28 @@ public:
         //fmt::print("incident_irradiances_sg_north: {}\n", printArray(incident_irradiances_sg_north));
         //fmt::print("solar_gains_north: {}\n", printArray(solar_gains_north));
 
-        std::cout << "epc_outside_temp: " << printArray(epc_outside_temp) << '\n';
-        std::cout << "epc_solar_irradiance: " << printArray(epc_solar_irradiance) << '\n';
+        //std::cout << "epc_outside_temp: " << printArray(epc_outside_temp) << '\n';
+        //std::cout << "epc_solar_irradiance: " << printArray(epc_solar_irradiance) << '\n';
 
-        std::cout << "solar_gains_north: " << printArray(solar_gains_north) << '\n';
+        //std::cout << "solar_gains_north: " << printArray(solar_gains_north) << '\n';
 
         //fmt::print("\n\n");
-        std::cout << "calcEPCyear" << '\n';
+        std::cout << "\n--- Energy Performance Certicate Demand ---" << '\n';
         calcEpcYear();
 
         //fmt::print("\n\n");
         //fmt::print("Heat Pump Demand\n");
-        std::cout << "\ncalcDemandYear hp" << '\n';
+        std::cout << "\n--- Heat Pump Yearly Demand ---" << '\n';
         hp_demand = calcDemandYear(hp_temp_profile);
 
         //fmt::print("\n\n");
         //fmt::print("Boiler Demand\n");
-        std::cout << "\ncalcDemandYear boiler" << '\n';
+        std::cout << "\n--- Boiler Yearly Demand ---" << '\n';
         boiler_demand = calcDemandYear(temp_profile);
         
-        std::cout << "initHeaterTesSettings" << '\n';
+        //std::cout << "initHeaterTesSettings" << '\n';
         initHeaterTesSettings();
-        std::cout << "finished sim" << '\n';
+        //std::cout << "finished sim" << '\n';
     }
 
     std::array<float, 24> initTempProfile(float temp) {
@@ -739,7 +739,7 @@ public:
         //    throw std::runtime_error("Path does not exist");
         //}
 
-        std::cout << "import file: " << filename << '\n';
+        //std::cout << "import file: " << filename << '\n';
 
         std::ifstream infile(filename);
         std::string line;
@@ -772,7 +772,7 @@ public:
         const std::string filename = "assets/" + data_type + "/lat_" + to_string_with_precision(lat_rounded, 1) + "_lon_" + to_string_with_precision(lon_rounded, 1) + ".csv";
         //const std::string filename = fmt::format("{}\\lat_{:.1f}_lon_{:.1f}.csv", data_type, lat_rounded, lon_rounded);
         //fmt::print("{}, {}\n", std::filesystem::current_path().string(), filename);
-        std::cout << "filename: " << filename << '\n';
+        //std::cout << "filename: " << filename << '\n';
         return importDataFile(filename);
     }
 
@@ -803,7 +803,7 @@ public:
         const std::array<float, 24>* temp_profile;
         for (int hp_option = 0; hp_option < 3; ++hp_option) {
             //fmt::print("hp_option {}\n", hp_option);
-            std::cout << "hp_option" << hp_option << "\n";
+            //std::cout << "hp_option" << hp_option << "\n";
             switch (hp_option)
             {
             case 1:
@@ -839,12 +839,13 @@ public:
         }
         else {  // ASHP or GSHP
             hp_electrical_power = hp_demand.max_hourly / cop_worst;
-            if (hp_electrical_power * cop_worst < 4.0f) {  // Mitsubishi have 4kWth ASHP
-                hp_electrical_power = 4.0f / cop_worst;  // Kensa have 3kWth GSHP
-            }
-            if (hp_electrical_power > 7.0f) { // Typical maximum size for domestic power
-                hp_electrical_power = 7.0f;
-            }
+        }
+
+        if (hp_electrical_power * cop_worst < 4.0f) {  // Mitsubishi have 4kWth ASHP
+            hp_electrical_power = 4.0f / cop_worst;  // Kensa have 3kWth GSHP
+        }
+        if (hp_electrical_power > 7.0f) { // Typical maximum size for domestic power
+            hp_electrical_power = 7.0f;
         }
 
         for (int solar_option = 0; solar_option < 7; ++solar_option) {
@@ -864,14 +865,14 @@ public:
         }
     }
 
-    void SolarSizeLoop(int hp_option, int solar_option, int solar_size_range, float optimum_tes_npc, int solar_maximum, float tes_range, float cop_worst, float hp_electrical_power, float ground_temp, TesTariffSpecs& current_tes_and_tariff_specs, const std::array<float, 24>* temp_profile) {
+    void SolarSizeLoop(int hp_option, int solar_option, int solar_size_range, float& optimum_tes_npc, int solar_maximum, float tes_range, float cop_worst, float hp_electrical_power, float ground_temp, TesTariffSpecs& current_tes_and_tariff_specs, const std::array<float, 24>* temp_profile) {
         for (int solar_size = 0; solar_size < solar_size_range; ++solar_size) {
             //fmt::print("        solar_size {}\n", solar_size);
             TesOptionLoop(hp_option, solar_option, solar_size, solar_maximum, tes_range, cop_worst, hp_electrical_power, optimum_tes_npc, ground_temp, current_tes_and_tariff_specs, temp_profile);
         }
     }
 
-    void TesOptionLoop(int hp_option, int solar_option, int solar_size, int solar_maximum, float tes_range, float cop_worst, float hp_electrical_power, float optimum_tes_npc, float ground_temp, TesTariffSpecs& current_tes_and_tariff_specs, const std::array<float, 24>* temp_profile) {
+    void TesOptionLoop(int hp_option, int solar_option, int solar_size, int solar_maximum, float tes_range, float cop_worst, float hp_electrical_power, float& optimum_tes_npc, float ground_temp, TesTariffSpecs& current_tes_and_tariff_specs, const std::array<float, 24>* temp_profile) {
         // if (2 <= solar_option) solar_thermal_size = solar_size * 2 + 2 else 0
         float solar_thermal_size = static_cast<float>((solar_size * 2 + 2) * static_cast<int>(2 <= solar_option));
 
@@ -893,7 +894,7 @@ public:
         }
     }
 
-    void TariffLoop(int hp_option, int solar_option, int tes_option, float& optimum_tariff, float solar_thermal_size, float pv_size, float cop_worst, float hp_electrical_power, float optimum_tes_npc, TesTariffSpecs& current_tes_and_tariff_specs, float ground_temp, int tariff, const std::array<float, 24>* temp_profile) {
+    void TariffLoop(int hp_option, int solar_option, int tes_option, float& optimum_tariff, float solar_thermal_size, float pv_size, float cop_worst, float hp_electrical_power, float& optimum_tes_npc, TesTariffSpecs& current_tes_and_tariff_specs, float ground_temp, int tariff, const std::array<float, 24>* temp_profile) {
         hour_year_counter = 0;
 
         float inside_temp_current = temp;  // Initial temp
@@ -937,6 +938,9 @@ public:
         float hp_electrical_power_worst = hp_electrical_power * cop_worst; // hp option
         // solar option print solar_thermal_size or pv_size
         float total_operational_cost = operational_costs_peak + operational_costs_off_peak; // tariff
+
+        //std::cout << hp_electrical_power_worst << ", " << pv_size << ", " << solar_thermal_size << ", " << tes_volume_current << ", " << operational_costs_peak << ", " << operational_costs_off_peak << '\n';
+
 
         if (total_operational_cost < optimum_tariff) {
             optimum_tariff = total_operational_cost;
@@ -982,17 +986,19 @@ public:
             float net_present_cost_current = cap_ex; // £s
             float discount_rate_current = 1;
 
+            //std::cout << "a: " << net_present_cost_current << ' ' << total_operational_cost << '\n';
             for (int year = 0; year < npc_years; ++year) { // Optimum for 20 years cost
                 net_present_cost_current += total_operational_cost / discount_rate_current;
                 discount_rate_current *= discount_rate;
+            }
+            //std::cout << "b: " << net_present_cost_current << ' ' << optimum_tes_npc << '\n';
 
-                if (discount_rate_current < optimum_tes_npc) {  // Lowest cost TES& tariff for heating tech
+            if (net_present_cost_current < optimum_tes_npc) {  // Lowest cost TES& tariff for heating tech
                     //For OpEx vs CapEx plots, with optimised TESand tariff
-                    optimum_tes_npc = discount_rate_current;
-                    current_tes_and_tariff_specs = { total_operational_cost, cap_ex, hp_option, solar_option, pv_size, solar_thermal_size, tes_volume_current, net_present_cost_current, operation_emissions };
+                optimum_tes_npc = net_present_cost_current;
+                current_tes_and_tariff_specs = { total_operational_cost, cap_ex, hp_option, solar_option, pv_size, solar_thermal_size, tes_volume_current, net_present_cost_current, operation_emissions };
 
-                    // fmt::print("{} {} {} {} {} {} {} {} {} \n", total_operational_cost, cap_ex, hp_option, solar_option, pv_size, solar_thermal_size, tes_volume_current, net_present_cost_current, operation_emissions);
-                }
+                // fmt::print("{} {} {} {} {} {} {} {} {} \n", total_operational_cost, cap_ex, hp_option, solar_option, pv_size, solar_thermal_size, tes_volume_current, net_present_cost_current, operation_emissions);
             }
         }
     }
@@ -1048,7 +1054,7 @@ public:
 
             // heat_flow_out in kWh, +ve means heat flows out of building, -ve heat flows into building
             inside_temp_current += (-heat_loss + solar_gain_south + solar_gain_north + body_heat_gain) / heat_capacity;
-
+            //std::cout << inside_temp_current << ' ' << heat_loss << '\n';
             float tes_upper_temperature;
             float tes_lower_temperature;
             float tes_thermocline_height;
@@ -1080,6 +1086,7 @@ public:
 
             tes_state_of_charge -= total_losses;
             inside_temp_current += total_losses / heat_capacity; // TES inside house
+            //std::cout << "ict" << inside_temp_current << '\n';
 
             float cop_current;
             float cop_boost;
@@ -1094,8 +1101,8 @@ public:
                 cop_boost = ax2bxc(0.00063f, -0.121f, 6.81f, 60 - outside_temp_current);
                 break;
             default: // GSHP, source A review of domestic heat pumps
-                cop_current = ax2bxc(0.000734f, -0.150f, 8.77f, hot_water_temp - outside_temp_current);
-                cop_boost = ax2bxc(0.000734f, -0.150f, 8.77f, 60 - outside_temp_current);
+                cop_current = ax2bxc(0.000734f, -0.150f, 8.77f, hot_water_temp - ground_temp);
+                cop_boost = ax2bxc(0.000734f, -0.150f, 8.77f, 60 - ground_temp);
                 break;
             }
 
@@ -1156,6 +1163,7 @@ public:
             }
             else {
                 space_hr_demand = (desired_min_temp_current - inside_temp_current) * heat_capacity;
+                //std::cout << space_hr_demand << ' ' << desired_min_temp_current << ' ' << inside_temp_current << '\n';
                 if ((space_hr_demand + dhw_hr_demand) < (tes_state_of_charge + hp_electrical_power * cop_current)) {
                     inside_temp_current = desired_min_temp_current;
                 }
@@ -1232,6 +1240,7 @@ public:
                 }
             }
 
+            //std::cout << tes_state_of_charge << ' ' << tes_charge_min << ' ' << electrical_demand_current << '\n';
             if (tes_state_of_charge < tes_charge_min) { // Take back up to 10L capacity if possible no matter what time
                 if ((tes_charge_min - tes_state_of_charge) < (hp_electrical_power - electrical_demand_current) * cop_current) {
                     electrical_demand_current += (tes_charge_min - tes_state_of_charge) / cop_current;
@@ -1255,6 +1264,7 @@ public:
             }
 
             // Operational costs summation
+            //std::cout << tariff << ' ' << operational_costs_peak << '\n';
             switch (tariff)
             {
             case 0:
@@ -1317,13 +1327,15 @@ public:
             operational_emissions_current += electrical_import * grid_emissions;
             operation_emissions += operational_emissions_current;
             //fmt::print("{}\n", operational_costs_peak);
+            //std::cout << "e: " << operational_emissions_current << '\n';
             solar_thermal_generation_total += solar_thermal_generation_current;
+            hour_year_counter++;
         }
     }
 
     void initHeaterTesSettings() {
         // HEATER & TES SETTINGS
-        std::cout << "Electrified heating options at annual costs:" << '\n';
+        //std::cout << "Electrified heating options at annual costs:" << '\n';
         std::array<TesTariffSpecs, 21> optimum_tes_and_tariff_spec;
 
         float ground_temp = 15 - (latitude - 50) * (4.0f / 9.0f); // Linear regression ground temp across UK at 100m depth
@@ -1331,14 +1343,16 @@ public:
 
         int solar_maximum = static_cast<int>(house_size / 8) * 2;  // Quarter of the roof for solar, even number
 
-        std::cout << "pre hp loop" << '\n';
+        //std::cout << "pre hp loop" << '\n';
         HpLoop(solar_maximum, tes_range, optimum_tes_and_tariff_spec, ground_temp);
-        std::cout << "post hp loop" << '\n';
+        //std::cout << "post hp loop" << '\n';
+        std::cout << "\n--- Optimum TES and Net Present Cost per Heating & Solar Option ---";
+        std::cout << "\nhp_opt, solar_opt, total_op_cost, cap_ex, pv_size, solar_size, tes_vol, NPC, emissions\n";
 
         for (const auto& s : optimum_tes_and_tariff_spec) {
             //fmt::print("[ {}, {}, {}, {}, {}, {}, {}, {}, {} ]\n", s.total_operational_cost, s.cap_ex, s.hp_option, s.solar_option, s.pv_size, s.solar_thermal_size, s.tes_volume, s.net_present_cost, s.operation_emissions);
-            std::cout << s.total_operational_cost << ", " << s.cap_ex << ", " << s.hp_option << ", " << s.solar_option 
-                << ", " << s.pv_size << ", " << s.solar_thermal_size << ", " << s.tes_volume << ", " << s.net_present_cost << ", " << s.operation_emissions << ", " << "\n";
+            std::cout << s.hp_option << ", \t" << s.solar_option
+                << ", \t" << s.total_operational_cost << ", \t" << s.cap_ex << ",\t " << s.pv_size << ", \t" << s.solar_thermal_size << ", \t" << s.tes_volume << ", \t" << s.net_present_cost << ", \t" << s.operation_emissions << ", \t" << "\n";
             //fmt::print("total_operational_cost {},\ncap_ex {},\nhp_option {},\nsolar_option {},\npv_size {},\nsolar_thermal_size {},\ntes_volume {},\nnet_present_cost {},\noperation_emissions {} \n\n\n", s.total_operational_cost, s.cap_ex, s.hp_option, s.solar_option, s.pv_size, s.solar_thermal_size, s.tes_volume, s.net_present_cost, s.operation_emissions);
         }
     }
