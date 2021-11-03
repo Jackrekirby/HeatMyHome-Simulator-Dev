@@ -24,19 +24,19 @@ loadURLParams();
 
 function updateURLParams() {
     search = Array();
-    console.log('new url params:', api_search);
+    //console.log('new url params:', api_search);
     for (const [key, value] of Object.entries(api_search)) {
         search.push(`${key}=${value}`);
     }
-    console.log('new url params string:', search.join('&'));
+    //console.log('new url params string:', search.join('&'));
 
     window.history.replaceState({}, '', `?${search.join('&')}`);
 }
 
 function loadURLParams() {
-    console.log('current url parms string:', window.location.search);
+    //console.log('current url parms string:', window.location.search);
     const urlParams = new URLSearchParams(window.location.search);
-    console.log(urlParams.get('postcode'), urlParams.get('longitude'))
+    //console.log(urlParams.get('postcode'), urlParams.get('longitude'))
 
     postcode = urlParams.get('postcode');
     if (postcode != null) {
@@ -139,7 +139,7 @@ function submitSimTest() {
 }
 
 function submitSimulation() {
-    console.log('simulation test');
+    console.log('simulation started');
 
     let postcode = document.getElementById('sim-postcode').value;
 
@@ -153,29 +153,28 @@ function submitSimulation() {
             console.log(data);
             document.getElementById('sim-latitude').value = data.result.latitude;
             document.getElementById('sim-longitude').value = data.result.longitude;
-            let text =
-                `Postcode: ${data.result.postcode}
-            Longitude: ${data.result.longitude}
-            Latitude: ${data.result.latitude}`
         }
+
+        let latitude = document.getElementById('sim-latitude').value;
+        let longitude = document.getElementById('sim-longitude').value;
+        let occupants = document.getElementById('sim-occupants').value;
+        let floor_area = document.getElementById('sim-floor-area').value;
+        let temperature = document.getElementById('sim-temperature').value;
+        let space_heating = document.getElementById('sim-space-heating').value;
+        let tes_max = document.getElementById('sim-tes-max').value;
+
+        setTimeout(function () {
+            let start = performance.now();
+            var result = Module.ccall('sim_test_args', // name of C function
+                'number', // return type
+                ['string', 'number', 'number', 'number', 'number', 'number', 'number', 'number'], // argument types
+                [postcode, latitude, longitude, occupants, floor_area, temperature, space_heating, tes_max]); // arguments
+            let end = performance.now();
+            console.log(`Simulation Runtime: ${(end - start) / 1000.0}s`);
+        }, 10);
     });
 
-    let latitude = document.getElementById('sim-latitude').value;
-    let longitude = document.getElementById('sim-longitude').value;
-    let occupants = document.getElementById('sim-occupants').value;
-    let floor_area = document.getElementById('sim-floor-area').value;
-    let temperature = document.getElementById('sim-temperature').value;
-    let space_heating = document.getElementById('sim-space-heating').value;
-    let tes_max = document.getElementById('sim-tes-max').value;
 
-    let start = performance.now();
-    var result = Module.ccall('sim_test_args', // name of C function
-        'number', // return type
-        ['string', 'number', 'number', 'number', 'number', 'number', 'number', 'number'], // argument types
-        [postcode, latitude, longitude, occupants, floor_area, temperature, space_heating, tes_max]); // arguments
-    console.log('result', result);
-    let end = performance.now();
-    console.log(result, (end - start) / 1000.0);
     // console.log('MARKER 1');
     // Module.ccall('sim_test_args', // name of C function
     //     'number', // return type

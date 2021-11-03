@@ -1351,8 +1351,8 @@ public:
 
         for (const auto& s : optimum_tes_and_tariff_spec) {
             //fmt::print("[ {}, {}, {}, {}, {}, {}, {}, {}, {} ]\n", s.total_operational_cost, s.cap_ex, s.hp_option, s.solar_option, s.pv_size, s.solar_thermal_size, s.tes_volume, s.net_present_cost, s.operation_emissions);
-            std::cout << s.hp_option << ", \t" << s.solar_option
-                << ", \t" << s.total_operational_cost << ", \t" << s.cap_ex << ",\t " << s.pv_size << ", \t" << s.solar_thermal_size << ", \t" << s.tes_volume << ", \t" << s.net_present_cost << ", \t" << s.operation_emissions << ", \t" << "\n";
+            std::cout << s.hp_option << ", " << s.solar_option
+                << ", " << s.total_operational_cost << ", " << s.cap_ex << ", " << s.pv_size << ", " << s.solar_thermal_size << ", " << s.tes_volume << ", " << s.net_present_cost << ", " << s.operation_emissions << ", " << "\n";
             //fmt::print("total_operational_cost {},\ncap_ex {},\nhp_option {},\nsolar_option {},\npv_size {},\nsolar_thermal_size {},\ntes_volume {},\nnet_present_cost {},\noperation_emissions {} \n\n\n", s.total_operational_cost, s.cap_ex, s.hp_option, s.solar_option, s.pv_size, s.solar_thermal_size, s.tes_volume, s.net_present_cost, s.operation_emissions);
         }
     }
