@@ -14,6 +14,8 @@ function clearConsole() {
     document.getElementById('console-log').innerHTML = '';
 }
 
+console.log(`Last Updated: ${last_updated}`);
+
 api_search = {
     postcode: "CV47AL", latitude: 52.3833, longitude: -1.5833, occupants: 2,
     temperature: 20.0, space_heating: 3000, floor_area: 60.0, tes_max: 0.5

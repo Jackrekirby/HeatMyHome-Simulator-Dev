@@ -55,7 +55,7 @@ batch_file = 'archive\\call_empp.bat'
 # javascript file merge inputs
 js_merge_file = 'index.js'
 js_files = ['extra.js', web_file]
-just_js = False
+just_js = True
 
 # ____ AUTOMATED ________________________________________________________
 
@@ -103,7 +103,7 @@ if not just_js:
 
 print(f' - 6 - Merging JavaScript Files')
 f = open(js_merge_file, "w")
-f.write(f'console.log("Last Updated: {dt_string}");\n\n')
+f.write(f'let last_updated = "{dt_string}";\n\n')
 for filename in js_files:
     f.write(
         f"// {f'&{filename}&'.center(77).replace(' ', '_').replace('&', ' ')}\n\n{open(filename, 'r').read()}\n\n")
