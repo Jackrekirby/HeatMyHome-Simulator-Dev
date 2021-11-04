@@ -1,0 +1,106 @@
+@import url("https://fonts.googleapis.com/css2?family=Sora&display=swap");
+
+:root {
+  --dark-clr: rgb(12, 37, 47);
+  --med-clr: rgb(40, 60, 80);
+  --light-clr: rgb(189, 221, 255);
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  align-items: center;
+  align-content: center;
+}
+
+* {
+  background-color: var(--dark-clr);
+  color: floralwhite;
+  font-family: "Sora", sans-serif;
+  font-weight: normal;
+  font-size: 1rem;
+  padding: 0rem;
+  margin: 0rem;
+}
+
+h1 {
+  margin: 1rem 0rem;
+  font-size: 1.5rem;
+  font-weight: bolder;
+}
+
+.box {
+  box-sizing: border-box;
+  border: 1px solid var(--light-clr);
+  padding: 1rem 2rem;
+  margin: 1rem 0rem;
+  width: calc(100% - 1rem);
+  max-width: 1024px;
+
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  align-items: center;
+  align-content: center;
+}
+
+.box h1 {
+  margin: 1rem 0rem;
+  font-size: 1.5rem;
+  font-weight: bolder;
+}
+
+.input-div {
+  display: flex;
+  width: 320px;
+  padding: 0.2rem 1rem;
+  margin: 0.5rem 0.5rem;
+}
+
+.input-div p,
+.input-div a {
+  width: 12rem;
+  text-align: right;
+  padding: 0.3rem 1rem;
+
+  background-color: var(--light-clr);
+  border: 1px solid var(--light-clr);
+  border-top-left-radius: 2px;
+  border-bottom-left-radius: 2px;
+  color: var(--med-clr);
+  font-weight: bold;
+}
+
+.input-div sup {
+  background-color: var(--light-clr);
+  color: var(--med-clr);
+  font-weight: bold;
+}
+
+button {
+  width: 12rem;
+  text-align: center;
+  padding: 0.3rem 1rem;
+
+  background-color: var(--light-clr);
+  border: 1px solid var(--light-clr);
+  border-radius: 2px;
+  color: var(--med-clr);
+  font-weight: bold;
+}
+
+a {
+  text-decoration: none;
+}
+
+.input-div input {
+  border: 1px solid var(--light-clr);
+  background-color: var(--med-clr);
+  color: var(--light-clr);
+  padding: 0.2rem 1rem;
+  width: 7rem;
+  border-top-right-radius: 2px;
+  border-bottom-right-radius: 2px;
+  text-align: left;
+}
