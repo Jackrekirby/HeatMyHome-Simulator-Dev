@@ -55,13 +55,14 @@ batch_file = 'archive\\call_empp.bat'
 # javascript file merge inputs
 js_merge_file = 'index.js'
 js_files = ['extra.js', web_file]
-just_js = True
+just_js = False
 
 # ____ AUTOMATED ________________________________________________________
 
 if not just_js:
     print(f' - 4 - Generating Emscripten Command')
 
+    # -pthread
     cmd = f'em++ {compiler_options_str}'
 
     for file in cpp_files:

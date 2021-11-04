@@ -5,6 +5,7 @@
 #include <string>
 #include <stdio.h>
 #include <vector>
+
 #include "animal.h"
 
 #include <array>
@@ -16,6 +17,9 @@
 
 #ifndef USING_EMSCRIPTEN_MACRO
 #include <chrono>
+#include <thread>
+#include <algorithm>
+#include <execution>
 #endif
 
 ///////////////////////////////////////////////////////////////////
@@ -89,6 +93,7 @@ public:
     static constexpr std::array<int, 24> epc_temp_profile_summer = { 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7 };
     static constexpr std::array<int, 24> epc_temp_profile_weekend = { 7, 7, 7, 7, 7, 7, 7, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20 };
     static constexpr std::array<int, 24> epc_temp_profile_other = { 7, 7, 7, 7, 7, 7, 7, 20, 20, 20, 7, 7, 7, 7, 7, 7, 20, 20, 20, 20, 20, 20, 20, 20 };
+    static constexpr float u_value = 1.30f / 1000; // 0.00130 kW / m2K linearised from https ://zenodo.org/record/4692649#.YQEbio5KjIV &
 
     // run time constants
     const std::array<float, 24> temp_profile;
@@ -118,7 +123,6 @@ public:
     const std::vector<float> outside_temps;
     const std::vector<float> solar_irradiances;
     const std::vector<float> agile_tariff;
-    size_t hour_year_counter = 0;
 
     const float discount_rate = 1.035f; // 3.5% standard for UK HMRC
     // https://www.finance-ni.gov.uk/articles/step-eight-calculate-net-present-values-and-assess-uncertainties
@@ -127,6 +131,7 @@ public:
 
     // non constants
     float thermal_transmittance = 0;
+    float house_size_thermal_transmittance_product = 0;
     //std::ifstream outside_temps_file;
     //std::ifstream solar_irradiances_file;
     //std::ifstream agile_tariff_file;
@@ -588,7 +593,7 @@ public:
         this->thermal_transmittance = thermal_transmittance;
     }
 
-    void calcDemandDay(const std::array<float, 24>& temp_profile, float& inside_temp_current, float ratio_sg_south, float ratio_sg_north, float cwt_current, float dhw_mf_current, float& demand_total, float& dhw_total, float& max_hourly_demand) {
+    void calcDemandDay(const std::array<float, 24>& temp_profile, float& inside_temp_current, float ratio_sg_south, float ratio_sg_north, float cwt_current, float dhw_mf_current, float& demand_total, float& dhw_total, float& max_hourly_demand, size_t& hour_year_counter) {
         for (size_t hour = 0; hour < 24; ++hour) {
             float desired_temp_current = static_cast<float>(temp_profile.at(hour));
             float dhw_hr_current = dhw_hourly_ratios.at(hour);
@@ -636,7 +641,7 @@ public:
         }
     }
 
-    void calcDemandMonth(int month, int num_days, const std::array<float, 24>& temp_profile, float inside_temp_current, float& demand_total, float& dhw_total, float& max_hourly_demand) {
+    void calcDemandMonth(int month, int num_days, const std::array<float, 24>& temp_profile, float inside_temp_current, float& demand_total, float& dhw_total, float& max_hourly_demand, size_t& hour_year_counter) {
         const float dhw_mf_current = dhw_monthly_factor.at(month);
         const float cwt_current = cold_water_temp.at(month);
         const float ratio_sg_south = ratios_sg_south.at(month);
@@ -645,15 +650,14 @@ public:
         for (size_t day = 0; day < num_days; ++day) {
             //fmt::print("day: {}", day);
             //std::cout << day << '\n';
-            calcDemandDay(temp_profile, inside_temp_current, ratio_sg_south, ratio_sg_north, cwt_current, dhw_mf_current, demand_total, dhw_total, max_hourly_demand);
+            calcDemandDay(temp_profile, inside_temp_current, ratio_sg_south, ratio_sg_north, cwt_current, dhw_mf_current, demand_total, dhw_total, max_hourly_demand, hour_year_counter);
         }
     }
 
     Demand calcDemandYear(const std::array<float, 24>& temp_profile) {
         // temp_profile either for hp or non-hp / boiler
         // temp_profiles: HP_Temp_Profile, Temp_Profile
-        hour_year_counter = 0;
-
+        size_t hour_year_counter = 0;
 
         float max_hourly_demand = 0;
         float demand_total = 0;
@@ -668,7 +672,7 @@ public:
         for (int days_in_month : days_in_months) {
             //fmt::print("month: {}", month);
             //std::cout << "m " << month << '\n';
-            calcDemandMonth(month, days_in_month, temp_profile, inside_temp_current, demand_total, dhw_total, max_hourly_demand);
+            calcDemandMonth(month, days_in_month, temp_profile, inside_temp_current, demand_total, dhw_total, max_hourly_demand, hour_year_counter);
             ++month;
         }
 
@@ -799,32 +803,53 @@ public:
         }
     };
 
-    void HpLoop(int solar_maximum, float tes_range, std::array<TesTariffSpecs, 21>& optimum_tes_and_tariff_spec, float ground_temp) {
-        const std::array<float, 24>* temp_profile;
+    struct HPnSpecs {
+        int hp_option;
+        std::array<HeatNinja::TesTariffSpecs, 7> optimum_tes_and_tariff_spec;
+
+        HPnSpecs(int hp_option) : hp_option(hp_option) {
+
+        }
+    };
+
+    struct HPSolarSpecs {
+        int hp_option;
+        int solar_option;
+        HeatNinja::TesTariffSpecs optimum_tes_and_tariff_spec;
+
+        HPSolarSpecs(int index) : hp_option(index / 7), solar_option(index % 7){
+            //std::cout << index % 7 << ' ' << index / 7 << '\n';
+        }
+    };
+
+    void HpOptionLoop(int solar_maximum, float tes_range, float ground_temp, std::array<TesTariffSpecs, 21>& optimum_tes_and_tariff_spec) {
         for (int hp_option = 0; hp_option < 3; ++hp_option) {
             //fmt::print("hp_option {}\n", hp_option);
             //std::cout << "hp_option" << hp_option << "\n";
-            switch (hp_option)
-            {
-            case 1:
-            case 2:
-                temp_profile = &(this->hp_temp_profile);
-                break;
-            default:
-                temp_profile = &(this->temp_profile);
-                break;
-            }
-            SolarOptionLoop(hp_option, solar_maximum, tes_range, optimum_tes_and_tariff_spec, ground_temp, temp_profile);
+            
+            SolarOptionLoop(hp_option, solar_maximum, tes_range, ground_temp, optimum_tes_and_tariff_spec);
         }
     }
 
-    void SolarOptionLoop(int hp_option, int solar_maximum, float tes_range, std::array<TesTariffSpecs, 21>& optimum_tes_and_tariff_spec, float ground_temp, const std::array<float, 24>* temp_profile) {
+    void SolarOptionLoop(int hp_option, int solar_maximum, float tes_range, float ground_temp, std::array<TesTariffSpecs, 21>& optimum_tes_and_tariff_spec) {
+        const std::array<float, 24>* temp_profile;
+        switch (hp_option)
+        {
+        case 1:
+        case 2:
+            temp_profile = &(this->hp_temp_profile);
+            break;
+        default:
+            temp_profile = &(this->temp_profile);
+            break;
+        }
+
         float cop_worst;
         if (hp_option == 0) { //Electrical Resistance Heater
             cop_worst = 1;
         }
         else if (hp_option == 1) { // ASHP, source A review of domestic heat pumps
-         // hot - coldest water temperature difference (hcwtd)
+            // hot - coldest water temperature difference (hcwtd)
             const float hcwtd = hot_water_temp - coldest_outside_temp;
             cop_worst = 6.81f - 0.121f * hcwtd + 0.000630f * hcwtd * hcwtd; // ASHP at coldest temp
         }
@@ -865,6 +890,165 @@ public:
         }
     }
 
+#ifndef USING_EMSCRIPTEN_MACRO
+    void HpOptionLoop_Thread(int solar_maximum, float tes_range, float ground_temp, std::array<TesTariffSpecs, 21>& optimum_tes_and_tariff_spec) {
+        std::array<TesTariffSpecs, 7> specs1, specs2, specs3;
+
+        std::thread th1([this, solar_maximum, tes_range, ground_temp, &specs1] { this->SolarOptionLoop_Thread(0, solar_maximum, tes_range, ground_temp, specs1); });
+        std::thread th2([this, solar_maximum, tes_range, ground_temp, &specs2] { this->SolarOptionLoop_Thread(1, solar_maximum, tes_range, ground_temp, specs2); });
+        std::thread th3([this, solar_maximum, tes_range, ground_temp, &specs3] { this->SolarOptionLoop_Thread(2, solar_maximum, tes_range, ground_temp, specs3); });
+        th1.join();
+        th2.join();
+        th3.join();
+
+        int i = 0;
+        for (auto& spec : specs1) {
+            optimum_tes_and_tariff_spec.at(i) = spec;
+            ++i;
+        }
+        for (auto& spec : specs2) {
+            optimum_tes_and_tariff_spec.at(i) = spec;
+            ++i;
+        }
+        for (auto& spec : specs3) {
+            optimum_tes_and_tariff_spec.at(i) = spec;
+            ++i;
+        }
+    }
+
+    void SolarOptionLoop_Thread(int hp_option, int solar_maximum, float tes_range, float ground_temp, std::array<TesTariffSpecs, 7>& optimum_tes_and_tariff_spec) {
+        const std::array<float, 24>* temp_profile;
+        switch (hp_option)
+        {
+        case 1:
+        case 2:
+            temp_profile = &(this->hp_temp_profile);
+            break;
+        default:
+            temp_profile = &(this->temp_profile);
+            break;
+        }
+
+        float cop_worst;
+        if (hp_option == 0) { //Electrical Resistance Heater
+            cop_worst = 1;
+        }
+        else if (hp_option == 1) { // ASHP, source A review of domestic heat pumps
+            // hot - coldest water temperature difference (hcwtd)
+            const float hcwtd = hot_water_temp - coldest_outside_temp;
+            cop_worst = 6.81f - 0.121f * hcwtd + 0.000630f * hcwtd * hcwtd; // ASHP at coldest temp
+        }
+        else { // GSHP, source A review of domestic heat pumps
+            const float hcwtd = hot_water_temp - coldest_outside_temp;
+            cop_worst = 8.77f - 0.150f * hcwtd + 0.000734f * hcwtd * hcwtd; // GSHP ~constant temp at 100m
+        }
+
+        float hp_electrical_power;
+        if (hp_option == 0) {  // Electrical Resistance Heater
+            hp_electrical_power = boiler_demand.max_hourly;
+        }
+        else {  // ASHP or GSHP
+            hp_electrical_power = hp_demand.max_hourly / cop_worst;
+        }
+
+        if (hp_electrical_power * cop_worst < 4.0f) {  // Mitsubishi have 4kWth ASHP
+            hp_electrical_power = 4.0f / cop_worst;  // Kensa have 3kWth GSHP
+        }
+        if (hp_electrical_power > 7.0f) { // Typical maximum size for domestic power
+            hp_electrical_power = 7.0f;
+        }
+
+        for (int solar_option = 0; solar_option < 7; ++solar_option) {
+            float optimum_tes_npc = 1000000;
+            TesTariffSpecs current_tes_and_tariff_specs;
+            int solar_size_range = solar_maximum / 2;
+            if (solar_option == 0) {
+                solar_size_range = 1;
+            }
+            else if (solar_option == 4 || solar_option == 5) {
+                solar_size_range -= 1;
+            }
+            //std::cout << "solar_option" << solar_option << "\n";
+            //fmt::print("    solar_option {}\n", solar_option);
+            SolarSizeLoop(hp_option, solar_option, solar_size_range, optimum_tes_npc, solar_maximum, tes_range, cop_worst, hp_electrical_power, ground_temp, current_tes_and_tariff_specs, temp_profile);
+            //optimum_tes_and_tariff_spec.at(static_cast<size_t>(solar_option) + static_cast<size_t>(hp_option * 7)) = current_tes_and_tariff_specs;
+            optimum_tes_and_tariff_spec.at(solar_option) = current_tes_and_tariff_specs;
+        }
+    }
+
+    void HPSolarOptionLoop_ParUnseq(int solar_maximum, float tes_range, std::array<TesTariffSpecs, 21>& optimum_tes_and_tariff_spec, float ground_temp) {
+        std::array<HPSolarSpecs, 21> hp_solar_specs = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 };
+        std::for_each(std::execution::par_unseq, hp_solar_specs.begin(), hp_solar_specs.end(), [&](HPSolarSpecs& hp_solar_spec) {
+            int hp_option = hp_solar_spec.hp_option;
+            int solar_option = hp_solar_spec.solar_option;
+
+            const std::array<float, 24>* temp_profile;
+            switch (hp_option)
+            {
+            case 1:
+            case 2:
+                temp_profile = &(this->hp_temp_profile);
+                break;
+            default:
+                temp_profile = &(this->temp_profile);
+                break;
+            }
+
+            float cop_worst;
+            if (hp_option == 0) { //Electrical Resistance Heater
+                cop_worst = 1;
+            }
+            else if (hp_option == 1) { // ASHP, source A review of domestic heat pumps
+             // hot - coldest water temperature difference (hcwtd)
+                const float hcwtd = hot_water_temp - coldest_outside_temp;
+                cop_worst = 6.81f - 0.121f * hcwtd + 0.000630f * hcwtd * hcwtd; // ASHP at coldest temp
+            }
+            else { // GSHP, source A review of domestic heat pumps
+                const float hcwtd = hot_water_temp - coldest_outside_temp;
+                cop_worst = 8.77f - 0.150f * hcwtd + 0.000734f * hcwtd * hcwtd; // GSHP ~constant temp at 100m
+            }
+
+            float hp_electrical_power;
+            if (hp_option == 0) {  // Electrical Resistance Heater
+                hp_electrical_power = boiler_demand.max_hourly;
+            }
+            else {  // ASHP or GSHP
+                hp_electrical_power = hp_demand.max_hourly / cop_worst;
+            }
+
+            if (hp_electrical_power * cop_worst < 4.0f) {  // Mitsubishi have 4kWth ASHP
+                hp_electrical_power = 4.0f / cop_worst;  // Kensa have 3kWth GSHP
+            }
+            if (hp_electrical_power > 7.0f) { // Typical maximum size for domestic power
+                hp_electrical_power = 7.0f;
+            }
+
+            //for (int solar_option = 0; solar_option < 7; ++solar_option) {
+            float optimum_tes_npc = 1000000;
+            TesTariffSpecs current_tes_and_tariff_specs;
+            int solar_size_range = solar_maximum / 2;
+            if (solar_option == 0) {
+                solar_size_range = 1;
+            }
+            else if (solar_option == 4 || solar_option == 5) {
+                solar_size_range -= 1;
+            }
+            //std::cout << "solar_option" << solar_option << "\n";
+            //fmt::print("    solar_option {}\n", solar_option);
+            SolarSizeLoop(hp_option, solar_option, solar_size_range, optimum_tes_npc, solar_maximum, tes_range, cop_worst, hp_electrical_power, ground_temp, current_tes_and_tariff_specs, temp_profile);
+            //optimum_tes_and_tariff_spec.at(static_cast<size_t>(solar_option) + static_cast<size_t>(hp_option * 7)) = current_tes_and_tariff_specs;
+            hp_solar_spec.optimum_tes_and_tariff_spec = current_tes_and_tariff_specs;
+            //}
+        });
+
+        size_t i = 0;
+        for (auto& hp_solar_spec : hp_solar_specs) {
+            optimum_tes_and_tariff_spec.at(i) = hp_solar_spec.optimum_tes_and_tariff_spec;
+            ++i; 
+        }
+    }
+#endif
+
     void SolarSizeLoop(int hp_option, int solar_option, int solar_size_range, float& optimum_tes_npc, int solar_maximum, float tes_range, float cop_worst, float hp_electrical_power, float ground_temp, TesTariffSpecs& current_tes_and_tariff_specs, const std::array<float, 24>* temp_profile) {
         for (int solar_size = 0; solar_size < solar_size_range; ++solar_size) {
             //fmt::print("        solar_size {}\n", solar_size);
@@ -895,8 +1079,8 @@ public:
     }
 
     void TariffLoop(int hp_option, int solar_option, int tes_option, float& optimum_tariff, float solar_thermal_size, float pv_size, float cop_worst, float hp_electrical_power, float& optimum_tes_npc, TesTariffSpecs& current_tes_and_tariff_specs, float ground_temp, int tariff, const std::array<float, 24>* temp_profile) {
-        hour_year_counter = 0;
-
+        size_t hour_year_counter = 0;
+        //std::cout << "here\n";
         float inside_temp_current = temp;  // Initial temp
         float solar_thermal_generation_total = 0;
         float operational_costs_peak = 0;
@@ -913,7 +1097,6 @@ public:
         //CWT coming in from DHW re - fill, accounted for by DHW energy out, DHW min useful temperature 40°C
         //Space heating return temperature would also be ~40°C with flow at 51°C
         float tes_state_of_charge = tes_charge_full;  // kWh, for H2O, starts full to prevent initial demand spike
-        const float u_value = 1.30f; // 1.30 W / m2K linearised from https ://zenodo.org/record/4692649#.YQEbio5KjIV &
         // https ://www.sciencedirect.com/science/article/pii/S0306261916302045
 
         constexpr std::array<int, 12> days_in_months = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
@@ -929,7 +1112,7 @@ public:
             float ratio_roof_south = ratios_roof_south.at(month);
 
             for (size_t day = 0; day < days_in_month; ++day) {
-                calcHeaterDay(temp_profile, inside_temp_current, ratio_sg_south, ratio_sg_north, cwt_current, dhw_mf_current, tes_state_of_charge, tes_charge_full, tes_charge_boost, tes_charge_max, u_value, tes_radius, ground_temp, hp_option, solar_option, pv_size, solar_thermal_size, hp_electrical_power, tariff, tes_volume_current, operational_costs_peak, operational_costs_off_peak, operation_emissions, solar_thermal_generation_total, ratio_roof_south, tes_charge_min);
+                calcHeaterDay(temp_profile, inside_temp_current, ratio_sg_south, ratio_sg_north, cwt_current, dhw_mf_current, tes_state_of_charge, tes_charge_full, tes_charge_boost, tes_charge_max, tes_radius, ground_temp, hp_option, solar_option, pv_size, solar_thermal_size, hp_electrical_power, tariff, tes_volume_current, operational_costs_peak, operational_costs_off_peak, operation_emissions, solar_thermal_generation_total, ratio_roof_south, tes_charge_min, hour_year_counter);
             }
             ++month;
         }
@@ -1030,27 +1213,32 @@ public:
         return ratios_roof_south;
     }
 
-    void calcHeaterDay(const std::array<float, 24>* temp_profile, float& inside_temp_current, float ratio_sg_south, float ratio_sg_north, float cwt_current, float dhw_mf_current, float& tes_state_of_charge, float tes_charge_full, float tes_charge_boost, float tes_charge_max, float u_value, float tes_radius, float ground_temp, int hp_option, int solar_option, float pv_size, float solar_thermal_size, float hp_electrical_power, int tariff, float& tes_volume_current, float& operational_costs_peak, float& operational_costs_off_peak, float& operation_emissions, float& solar_thermal_generation_total, float ratio_roof_south, float tes_charge_min) {
+    void calcHeaterDay(const std::array<float, 24>* temp_profile, float& inside_temp_current, float ratio_sg_south, float ratio_sg_north, float cwt_current, float dhw_mf_current, float& tes_state_of_charge, float tes_charge_full, float tes_charge_boost, float tes_charge_max, float tes_radius, float ground_temp, int hp_option, int solar_option, float pv_size, float solar_thermal_size, float hp_electrical_power, int tariff, float& tes_volume_current, float& operational_costs_peak, float& operational_costs_off_peak, float& operation_emissions, float& solar_thermal_generation_total, float ratio_roof_south, float tes_charge_min, size_t& hour_year_counter) {
+        const float pi_d = PI * tes_radius * 2;
+        const float pi_r2 = PI * tes_radius * tes_radius;
+        const float pi_d2 = pi_d * tes_radius * 2;
+
         for (size_t hour = 0; hour < 24; ++hour) {
             float desired_min_temp_current = static_cast<float>(temp_profile->at(hour));
             float dhw_hr_current = dhw_hourly_ratios.at(hour);
 
-            float outside_temp_current = outside_temps.at(hour_year_counter);
-            float solar_irradiance_current = solar_irradiances.at(hour_year_counter);
-            float agile_tariff_current = agile_tariff.at(hour_year_counter);
+            const float outside_temp_current = outside_temps.at(hour_year_counter);
+            const float solar_irradiance_current = solar_irradiances.at(hour_year_counter);
+            const float agile_tariff_current = agile_tariff.at(hour_year_counter);
 
-            float dhw_hr_demand = (dhw_avg_daily_vol * 4.18f * (hot_water_temp - cwt_current) / 3600) * dhw_mf_current * dhw_hr_current;
+            const float dhw_hr_demand = (dhw_avg_daily_vol * 4.18f * (hot_water_temp - cwt_current) / 3600) * dhw_mf_current * dhw_hr_current;
 
-            float incident_irradiance_sg_s = solar_irradiance_current * ratio_sg_south;
-            float incident_irradiance_sg_n = solar_irradiance_current * ratio_sg_north;
-            float solar_gain_south = incident_irradiance_sg_s * solar_gain_house_factor;
-            float solar_gain_north = incident_irradiance_sg_n * solar_gain_house_factor;
+            const float incident_irradiance_sg_s = solar_irradiance_current * ratio_sg_south;
+            const float incident_irradiance_sg_n = solar_irradiance_current * ratio_sg_north;
+            const float solar_gain_south = incident_irradiance_sg_s * solar_gain_house_factor;
+            const float solar_gain_north = incident_irradiance_sg_n * solar_gain_house_factor;
 
             // Does not account for angle of the sun across the day
-            float incident_irradiance_roof_south = solar_irradiance_current * ratio_roof_south / 1000; // kW / m2
+            const float incident_irradiance_roof_south = solar_irradiance_current * ratio_roof_south / 1000; // kW / m2
 
             //float solar_irradiance_current = Solar_Irradiance[Weather_Count]
-            const float heat_loss = (house_size * thermal_transmittance * (inside_temp_current - outside_temp_current)) / 1000;
+            //const float heat_loss = (house_size * thermal_transmittance * (inside_temp_current - outside_temp_current)) / 1000;
+            const float heat_loss = house_size_thermal_transmittance_product * (inside_temp_current - outside_temp_current);
 
             // heat_flow_out in kWh, +ve means heat flows out of building, -ve heat flows into building
             inside_temp_current += (-heat_loss + solar_gain_south + solar_gain_north + body_heat_gain) / heat_capacity;
@@ -1075,36 +1263,75 @@ public:
                 tes_thermocline_height = (tes_state_of_charge - tes_charge_boost) / (tes_charge_max - tes_charge_boost);
             }
 
-            tes_thermocline_height = std::max(std::min(tes_thermocline_height, 1.0f), 0.0f);
+            if (tes_thermocline_height < 0) {
+                tes_thermocline_height = 0;
+            }
+            else if (tes_thermocline_height > 1) {
+                tes_thermocline_height = 1;
+            }
+            //tes_thermocline_height = std::max(std::min(tes_thermocline_height, 1.0f), 0.0f);
 
-            const float pi_d = PI * tes_radius * 2;
-            const float pi_r2 = PI * tes_radius * tes_radius;
-            float tes_upper_losses = (tes_upper_temperature - inside_temp_current) * u_value * (pi_d * (tes_thermocline_height * tes_radius * 2) + pi_r2) / 1000; // losses in kWh
-            float tes_lower_losses = (tes_lower_temperature - inside_temp_current) * u_value * (pi_d * ((1 - tes_thermocline_height) * tes_radius * 2) + pi_r2) / 1000;
-
+            const float tes_upper_losses = (tes_upper_temperature - inside_temp_current) * u_value * (pi_d2 * tes_thermocline_height + pi_r2); // losses in kWh
+            const float tes_lower_losses = (tes_lower_temperature - inside_temp_current) * u_value * (pi_d2 * (1 - tes_thermocline_height) + pi_r2);
+            //const float tes_upper_losses = (tes_upper_temperature - inside_temp_current) * u_value * (pi_d * (tes_thermocline_height * tes_radius * 2) + pi_r2); // losses in kWh
+            //const float tes_lower_losses = (tes_lower_temperature - inside_temp_current) * u_value * (pi_d * ((1 - tes_thermocline_height) * tes_radius * 2) + pi_r2);
             const float total_losses = tes_upper_losses + tes_lower_losses;
+
+            //const float total_losses = [&]() -> const float {
+            //    const float pi_d = PI * tes_radius * 2;
+            //    const float pi_r2 = PI * tes_radius * tes_radius;
+            //    const float tes_upper_losses = (tes_upper_temperature - inside_temp_current) * u_value * (pi_d * (tes_thermocline_height * tes_radius * 2) + pi_r2) / 1000; // losses in kWh
+            //    const float tes_lower_losses = (tes_lower_temperature - inside_temp_current) * u_value * (pi_d * ((1 - tes_thermocline_height) * tes_radius * 2) + pi_r2) / 1000;
+            //    return tes_upper_losses + tes_lower_losses;
+            //}();
 
             tes_state_of_charge -= total_losses;
             inside_temp_current += total_losses / heat_capacity; // TES inside house
             //std::cout << "ict" << inside_temp_current << '\n';
 
-            float cop_current;
-            float cop_boost;
-            switch (hp_option)
-            {
-            case 0: //Electric Heater
-                cop_current = 1;
-                cop_boost = 1;
-                break;
-            case 1: // ASHP, source A review of domestic heat pumps
-                cop_current = ax2bxc(0.00063f, -0.121f, 6.81f, hot_water_temp - outside_temp_current);
-                cop_boost = ax2bxc(0.00063f, -0.121f, 6.81f, 60 - outside_temp_current);
-                break;
-            default: // GSHP, source A review of domestic heat pumps
-                cop_current = ax2bxc(0.000734f, -0.150f, 8.77f, hot_water_temp - ground_temp);
-                cop_boost = ax2bxc(0.000734f, -0.150f, 8.77f, 60 - ground_temp);
-                break;
-            }
+            const float cop_current = [&]() -> const float {
+                switch (hp_option)
+                {
+                case 0: //Electric Heater
+                    return 1.0f;
+                case 1: // ASHP, source A review of domestic heat pumps
+                    return ax2bxc(0.00063f, -0.121f, 6.81f, hot_water_temp - outside_temp_current);
+                    break;
+                default: // GSHP, source A review of domestic heat pumps
+                    return ax2bxc(0.000734f, -0.150f, 8.77f, hot_water_temp - ground_temp);
+                }
+            }();
+
+            const float cop_boost = [&]() -> const float {
+                switch (hp_option)
+                {
+                case 0: //Electric Heater
+                    return 1.0f;
+                case 1: // ASHP, source A review of domestic heat pumps
+                    return ax2bxc(0.00063f, -0.121f, 6.81f, 60 - outside_temp_current);
+                    break;
+                default: // GSHP, source A review of domestic heat pumps
+                    return ax2bxc(0.000734f, -0.150f, 8.77f, 60 - ground_temp);
+                }
+            }();
+            
+            //float cop_current;
+            //float cop_boost;
+            //switch (hp_option)
+            //{
+            //case 0: //Electric Heater
+            //    cop_current = 1;
+            //    cop_boost = 1;
+            //    break;
+            //case 1: // ASHP, source A review of domestic heat pumps
+            //    cop_current = ax2bxc(0.00063f, -0.121f, 6.81f, hot_water_temp - outside_temp_current);
+            //    cop_boost = ax2bxc(0.00063f, -0.121f, 6.81f, 60 - outside_temp_current);
+            //    break;
+            //default: // GSHP, source A review of domestic heat pumps
+            //    cop_current = ax2bxc(0.000734f, -0.150f, 8.77f, hot_water_temp - ground_temp);
+            //    cop_boost = ax2bxc(0.000734f, -0.150f, 8.77f, 60 - ground_temp);
+            //    break;
+            //}
 
             float pv_efficiency;
             switch (solar_option)
@@ -1181,19 +1408,20 @@ public:
             //std::cout << space_hr_demand << ' ' << dhw_hr_demand << ' ' << tes_state_of_charge << '\n';
             float electrical_demand_current;
             // Determines electrical demand for space and dhw demands
-            if ((space_hr_demand + dhw_hr_demand) < tes_state_of_charge) {
+            const float space_water_demand = space_hr_demand + dhw_hr_demand;
+            if (space_water_demand < tes_state_of_charge) {
                 // TES can provide all demand
                 
-                tes_state_of_charge -= (space_hr_demand + dhw_hr_demand);
+                tes_state_of_charge -= space_water_demand;
                 electrical_demand_current = 0;
             }
-            else if ((space_hr_demand + dhw_hr_demand) < (tes_state_of_charge + hp_electrical_power * cop_current)) {
+            else if (space_water_demand < (tes_state_of_charge + hp_electrical_power * cop_current)) {
                 if (tes_state_of_charge > 0) {
-                    electrical_demand_current = (space_hr_demand + dhw_hr_demand - tes_state_of_charge) / cop_current;
+                    electrical_demand_current = (space_water_demand - tes_state_of_charge) / cop_current;
                     tes_state_of_charge = 0;  // TES needs support so taken to empty if it had any charge
                 }
                 else {
-                    electrical_demand_current = (space_hr_demand + dhw_hr_demand) / cop_current;
+                    electrical_demand_current = space_water_demand / cop_current;
                 }
             }
             else {
@@ -1343,9 +1571,19 @@ public:
 
         int solar_maximum = static_cast<int>(house_size / 8) * 2;  // Quarter of the roof for solar, even number
 
-        //std::cout << "pre hp loop" << '\n';
-        HpLoop(solar_maximum, tes_range, optimum_tes_and_tariff_spec, ground_temp);
-        //std::cout << "post hp loop" << '\n';
+        house_size_thermal_transmittance_product = house_size * thermal_transmittance / 1000;
+        
+        
+#ifdef USING_EMSCRIPTEN_MACRO
+        //SINGLE THREAD
+        HpOptionLoop(solar_maximum, tes_range, ground_temp, optimum_tes_and_tariff_spec);
+#else
+        //MULTI THREADED
+        //HpOptionLoop_Thread(solar_maximum, tes_range, ground_temp, optimum_tes_and_tariff_spec);
+        // EXECUTION:PAR_UNSEQ
+        HPSolarOptionLoop_ParUnseq(solar_maximum, tes_range, optimum_tes_and_tariff_spec, ground_temp);
+#endif
+        
         std::cout << "\n--- Optimum TES and Net Present Cost per Heating & Solar Option ---";
         std::cout << "\nhp_opt, solar_opt, total_op_cost, cap_ex, pv_size, solar_size, tes_vol, NPC, emissions\n";
 
