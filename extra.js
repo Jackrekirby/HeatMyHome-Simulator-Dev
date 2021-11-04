@@ -138,6 +138,23 @@ function submitSimTest() {
     console.log(result, (end - start) / 1000.0);
 }
 
+//renderTableTest();
+// function renderTableTest() {
+//     string3 = '[["ERH","None",0,0,0.2,373,949,6435,924082],["ERH","PV",14,0,0.1,173,3759,6308,515541],["ERH","FP",0,2,0.2,316,3527,8182,774929],["ERH","ET",0,2,0.2,305,3637,8129,746834],["ERH","FP+PV",12,2,0.1,168,5896,8372,477502],["ERH","ET+PV",12,2,0.1,147,6006,8172,424241],["ERH","PVT",2,2,0.2,300,4957,9366,747532],["ASHP","None",0,0,0.1,145,6238,8369,355058],["ASHP","PV",14,0,0.1,-107,9318,7751,-23082],["ASHP","FP",0,2,0.1,128,8815,10703,324384],["ASHP","ET",0,2,0.1,124,8925,10745,315707],["ASHP","FP+PV",12,2,0.1,-77,11455,10318,6957],["ASHP","ET+PV",12,2,0.1,-90,11565,10236,-9927],["ASHP","PVT",2,2,0.1,111,10245,11880,295003],["GSHP","None",0,0,0.1,90,7938,9257,220899],["GSHP","PV",14,0,0.1,-198,11018,8104,-163129],["GSHP","FP",0,2,0.1,77,10515,11653,202184],["GSHP","ET",0,2,0.1,74,10625,11717,197830],["GSHP","FP+PV",12,2,0.1,-164,13155,10746,-123347],["GSHP","ET+PV",12,2,0.1,-173,13265,10720,-133578],["GSHP","PVT",2,2,0.1,60,11945,12833,172818]]'
+
+//     specslist = JSON.parse(string3);
+//     for (let specs of specslist) {
+//         console.log(specs);
+//         let tr = document.createElement('tr');
+//         for (let value of specs) {
+//             let td = document.createElement('td');
+//             td.innerHTML = value;
+//             tr.appendChild(td);
+//         }
+//         simtable.appendChild(tr);
+//     }
+// }
+
 function submitSimulation() {
     console.log('simulation started');
 
@@ -145,6 +162,13 @@ function submitSimulation() {
 
     postcode = postcode.toUpperCase().replace(' ', '');
     document.getElementById('sim-postcode').value = postcode;
+
+
+    simtable = document.getElementById('sim-table');
+    simtable.classList.add("hide");
+    while (document.getElementsByTagName('tr').length > 1) {
+        simtable.removeChild(simtable.lastChild);
+    }
 
     getJSON('https://api.postcodes.io/postcodes/' + postcode, function (err, data) {
         if (err != null) {
@@ -165,12 +189,13 @@ function submitSimulation() {
 
         setTimeout(function () {
             let start = performance.now();
-            var result = Module.ccall('sim_test_args', // name of C function
-                'number', // return type
+            let result = Module.ccall('sim_test_args', // name of C function
+                'string', // return type
                 ['string', 'number', 'number', 'number', 'number', 'number', 'number', 'number'], // argument types
                 [postcode, latitude, longitude, occupants, floor_area, temperature, space_heating, tes_max]); // arguments
             let end = performance.now();
-            console.log(`Simulation Runtime: ${(end - start) / 1000.0}s`);
+            console.log(`Simulation Runtime: ${((end - start) / 1000.0).toPrecision(3)}s`);
+            renderSimTable(result)
         }, 10);
     });
 
@@ -187,6 +212,23 @@ function submitSimulation() {
     //         console.log(result, (end - start) / 1000.0);
     //     });
     // console.log('MARKER 2');
+}
+
+function renderSimTable(sim_string) {
+    specslist = JSON.parse(sim_string);
+    simtable = document.getElementById('sim-table');
+
+    for (let specs of specslist) {
+        //console.log(specs);
+        let tr = document.createElement('tr');
+        for (let value of specs) {
+            let td = document.createElement('td');
+            td.innerHTML = value;
+            tr.appendChild(td);
+        }
+        simtable.appendChild(tr);
+    }
+    simtable.classList.remove("hide");
 }
 
 function submitLatLon() {

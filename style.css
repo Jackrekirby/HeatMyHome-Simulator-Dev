@@ -24,6 +24,23 @@ body {
 
 h1 {
   margin: 1.5rem 1rem 0rem 1rem;
+  animation-name: example;
+  animation-duration: 2s;
+  animation-iteration-count: infinite;
+}
+
+@keyframes example {
+  from {
+    color: white;
+  }
+
+  50% {
+    color: var(--light-clr);
+  }
+
+  to {
+    color: white;
+  }
 }
 
 input {
@@ -142,4 +159,39 @@ a {
   border: 1px solid var(--light-clr);
   background-color: var(--light-clr);
   color: var(--dark-clr);
+}
+
+.hide {
+  display: none;
+}
+
+table {
+  border: 1px solid var(--light-clr);
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+th {
+  font-size: 0.8rem;
+  font-weight: normal;
+  color: var(--light-clr);
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  background-color: var(--med-clr);
+  border: 1px solid var(--light-clr);
+  padding: 0.5rem 0rem;
+}
+
+th > * {
+  font-size: 0.8rem;
+  font-weight: normal;
+  color: var(--light-clr);
+  background-color: var(--med-clr);
+}
+
+td {
+  font-size: 0.8rem;
+  padding: 0.1rem 0rem;
+  text-align: center;
 }

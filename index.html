@@ -54,6 +54,20 @@
         <button onclick="submitSimulation();">Run Simulation</button>
       </div>
 
+      <table id="sim-table" class="hide">
+        <tr>
+          <th>Heat Opt</th>
+          <th>Solar Opt</th>
+          <th>PV Size (m<sup>2</sup>)</th>
+          <th>Solar Size (m<sup>2</sup>)</th>
+          <th>TES Vol (m<sup>3</sup>)</th>
+          <th>OPEX (£/yr)</th>
+          <th>CAPEX (£)</th>
+          <th>NPC (£)</th>
+          <th>gCO<sub>2</sub>eq/yr</th>
+        </tr>
+      </table>
+
       <textarea readonly id="console-log">Console logs here ...</textarea>
       <button class="clear-console" onclick="clearConsole();">
         Clear Console
