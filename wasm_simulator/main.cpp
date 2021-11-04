@@ -1626,7 +1626,7 @@ public:
         ss << '[';
         int i = 0;
         for (const auto& s : optimum_tes_and_tariff_spec) {
-            ss << "[\"" << heat_opt_names.at(static_cast<int>(s.hp_option)) << "\", \"" << solar_opt_names.at(static_cast<int>(s.solar_option)) << "\", " << s.pv_size << ", " << s.solar_thermal_size << ", " << s.tes_volume << ", " << to_string_with_precision(s.total_operational_cost, 0) << ", " << to_string_with_precision(s.cap_ex, 0) << ", " << to_string_with_precision(s.net_present_cost, 0) << ", " << to_string_with_precision(s.operation_emissions, 0) << "]";
+            ss << "[\"" << heat_opt_names.at(static_cast<int>(s.hp_option)) << "\", \"" << solar_opt_names.at(static_cast<int>(s.solar_option)) << "\", " << s.pv_size << ", " << s.solar_thermal_size << ", " << s.tes_volume << ", " << to_string_with_precision(s.total_operational_cost, 0) << ", " << to_string_with_precision(s.cap_ex, 0) << ", " << to_string_with_precision(s.net_present_cost, 0) << ", " << to_string_with_precision(s.operation_emissions / 1000, 0) << "]";
             if (i < 20) {
                 ss << ',';
             }
