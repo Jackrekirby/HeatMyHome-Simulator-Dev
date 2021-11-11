@@ -56,7 +56,7 @@ std::string to_string_with_precision(const T a_value, const int n = 3)
     return out.str();
 }
 
-class HeatNinja {
+class HeatNinja2 {
 public:
     // inputs
     const int num_occupants;
@@ -146,7 +146,7 @@ public:
     Demand hp_demand;
     Demand boiler_demand;
 
-    HeatNinja(int num_occupants, const std::string& location, int epc_space_heating,
+    HeatNinja2(int num_occupants, const std::string& location, int epc_space_heating,
         float house_size, float tes_volume_max, float temp, float latitude, float longitude)
         : num_occupants(num_occupants),
         location(location),
@@ -835,9 +835,9 @@ public:
     //};
 
     struct HPSolarSpecs {
-        HeatOptions hp_option;
-        SolarOptions solar_option;
-        HeatNinja::TesTariffSpecs optimum_tes_and_tariff_spec;
+        HeatNinja2::HeatOptions hp_option;
+        HeatNinja2::SolarOptions solar_option;
+        HeatNinja2::TesTariffSpecs optimum_tes_and_tariff_spec;
 
         HPSolarSpecs(int index) : hp_option(static_cast<HeatOptions>(index / 7)), solar_option(static_cast<SolarOptions>(index % 7)){
             //std::cout << index % 7 << ' ' << index / 7 << '\n';
@@ -1615,7 +1615,7 @@ public:
         house_size_thermal_transmittance_product = house_size * thermal_transmittance / 1000;
         
         std::ofstream output_file;
-        output_file.open("../matlab/output_file.txt");
+        output_file.open("../matlab/output_file2.txt");
         
 #ifdef USING_EMSCRIPTEN_MACRO
         //SINGLE THREAD
@@ -1689,7 +1689,7 @@ extern "C" {
     {
         const std::string postcode(postcode_char);
 
-        HeatNinja heat_ninja(num_occupants, postcode, epc_space_heating, house_size,
+        HeatNinja2 heat_ninja(num_occupants, postcode, epc_space_heating, house_size,
             tes_volume_max, temp, latitude, longitude);
 
         return cstr(heat_ninja.initHeaterTesSettings());
@@ -1715,7 +1715,7 @@ extern "C" {
         const float latitude = 52.3833f;
         const float longitude = -1.5833f;
 
-        HeatNinja heat_ninja(num_occupants, location, epc_space_heating, house_size,
+        HeatNinja2 heat_ninja(num_occupants, location, epc_space_heating, house_size,
             tes_volume_max, temp, latitude, longitude);
 
         std::string output = heat_ninja.initHeaterTesSettings();
