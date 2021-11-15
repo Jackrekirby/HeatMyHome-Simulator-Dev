@@ -576,65 +576,99 @@ void HeatNinja::HpOptionLoop(int solar_maximum, float tes_range, float ground_te
     }
 }
 
-void HeatNinja::SolarOptionLoop(HeatOptions hp_option, int solar_maximum, float tes_range, float ground_temp, std::array<TesTariffSpecs, 21>& optimum_tes_and_tariff_spec, std::ofstream& output_file) {
-    const std::array<float, 24>* temp_profile;
+const std::array<float, 24>& HeatNinja::select_temp_profile(HeatOptions hp_option, const std::array<float, 24>& hp_temp_profile, const std::array<float, 24>& erh_temp_profile) {
     switch (hp_option)
     {
     case HeatOptions::ASHP:
     case HeatOptions::GSHP:
-        temp_profile = &(this->hp_temp_profile);
-        break;
+        return hp_temp_profile;
     default:
-        temp_profile = &(this->temp_profile);
-        break;
+        return erh_temp_profile;
     }
+}
 
-    float cop_worst;
-    if (hp_option == HeatOptions::ERH) { //Electrical Resistance Heater
-        cop_worst = 1;
+float HeatNinja::calculate_cop_worst(HeatOptions hp_option, float hot_water_temp, float coldest_outside_temp) {
+    switch (hp_option) // hp sources: A review of domestic heat pumps
+    {
+    case HeatOptions::ERH:
+        return 1;
+    case HeatOptions::ASHP:
+        return tools::ax2bxc(0.000630f, -0.121f, 6.81f, hot_water_temp - coldest_outside_temp);
+    default: //HeatOptions::GSHP
+        return tools::ax2bxc(0.000734f, -0.150f, 8.77f, hot_water_temp - coldest_outside_temp);
     }
-    else if (hp_option == HeatOptions::ASHP) { // ASHP, source A review of domestic heat pumps
-        // hot - coldest water temperature difference (hcwtd)
-        const float hcwtd = hot_water_temp - coldest_outside_temp;
-        cop_worst = 6.81f - 0.121f * hcwtd + 0.000630f * hcwtd * hcwtd; // ASHP at coldest temp
-    }
-    else { // GSHP, source A review of domestic heat pumps
-        const float hcwtd = hot_water_temp - coldest_outside_temp;
-        cop_worst = 8.77f - 0.150f * hcwtd + 0.000734f * hcwtd * hcwtd; // GSHP ~constant temp at 100m
-    }
+}
 
-    float hp_electrical_power;
-    if (hp_option == HeatOptions::ERH) {  // Electrical Resistance Heater
-        hp_electrical_power = boiler_demand.max_hourly;
+float HeatNinja::calculate_hp_electrical_power(HeatOptions hp_option, float max_hourly_erh_demand, float max_hourly_hp_demand, float cop_worst) {
+    // Mitsubishi have 4kWth ASHP, Kensa have 3kWth GSHP
+    // 7kWth Typical maximum size for domestic power
+    switch (hp_option) 
+    { 
+    case HeatOptions::ERH:
+        return std::min(std::max(max_hourly_erh_demand, 4.0f / cop_worst), 7.0f);
+    default: // ASHP or GSHP
+        return std::min(std::max(max_hourly_hp_demand, 4.0f / cop_worst), 7.0f);
     }
-    else {  // ASHP or GSHP
-        hp_electrical_power = hp_demand.max_hourly / cop_worst;
-    }
+}
 
-    if (hp_electrical_power * cop_worst < 4.0f) {  // Mitsubishi have 4kWth ASHP
-        hp_electrical_power = 4.0f / cop_worst;  // Kensa have 3kWth GSHP
+int HeatNinja::calculate_solar_size_range(SolarOptions solar_option, int solar_maximum) {
+    switch (solar_option)   
+    {
+    case HeatNinja::SolarOptions::None:
+        return 1;
+    case HeatNinja::SolarOptions::FP_PV:
+    case HeatNinja::SolarOptions::ET_PV:
+        return solar_maximum / 2 - 1;
+    default:
+        return solar_maximum / 2;
     }
-    if (hp_electrical_power > 7.0f) { // Typical maximum size for domestic power
-        hp_electrical_power = 7.0f;
-    }
+}
+
+void HeatNinja::SolarOptionLoop(HeatOptions hp_option, int solar_maximum, float tes_range, float ground_temp, std::array<TesTariffSpecs, 21>& optimum_tes_and_tariff_spec, std::ofstream& output_file) {
+    const std::array<float, 24>& temp_profile = select_temp_profile(hp_option, this->hp_temp_profile, this->temp_profile);
+    const float cop_worst = calculate_cop_worst(hp_option, hot_water_temp, coldest_outside_temp);
+    float hp_electrical_power = calculate_hp_electrical_power(hp_option, boiler_demand.max_hourly, hp_demand.max_hourly, cop_worst);
 
     for (int solar_option_int = 0; solar_option_int < 7; ++solar_option_int) {
         SolarOptions solar_option = static_cast<SolarOptions>(solar_option_int);
         float optimum_tes_npc = 1000000;
+        int solar_size_range = calculate_solar_size_range(solar_option, solar_maximum);
         TesTariffSpecs current_tes_and_tariff_specs;
-        int solar_size_range = solar_maximum / 2;
-        if (solar_option == SolarOptions::None) {
-            solar_size_range = 1;
-        }
-        else if (solar_option == SolarOptions::FP_PV || solar_option == SolarOptions::ET_PV) {
-            solar_size_range -= 1;
-        }
-        //std::cout << "solar_option" << solar_option << "\n";
-        //fmt::print("    solar_option {}\n", solar_option);
-        SolarSizeLoop(hp_option, solar_option, solar_size_range, optimum_tes_npc, solar_maximum, tes_range, cop_worst, hp_electrical_power, ground_temp, current_tes_and_tariff_specs, temp_profile, output_file);
+        SolarSizeLoop(hp_option, solar_option, solar_size_range, optimum_tes_npc, solar_maximum, tes_range, cop_worst, hp_electrical_power, ground_temp, current_tes_and_tariff_specs, &temp_profile, output_file);
         const int index = solar_option_int + static_cast<int>(hp_option) * 7;
         optimum_tes_and_tariff_spec.at(index) = current_tes_and_tariff_specs;
     }
+}
+
+std::array<HeatNinja::TesTariffSpecs, 21> HeatNinja::simulate_heat_solar_combinations(int solar_maximum, float tes_range, float ground_temp, std::ofstream& output_file) {
+    //std::array<std::thread, 21> threads;
+    std::array<HeatNinja::TesTariffSpecs, 21> optimal_specifications;
+
+    int i = 0;
+    for (int heat_option_int = 0; heat_option_int < 3; ++heat_option_int) {
+        for (int solar_option_int = 0; solar_option_int < 7; ++solar_option_int) {
+            //threads.at(i) = std::thread([this, i, heat_option_int, solar_option_int, solar_maximum, tes_range, ground_temp, &optimal_specifications, &output_file] {
+            //    this->simulate_heat_solar_combination(static_cast<HeatOptions>(heat_option_int), static_cast<SolarOptions>(solar_option_int), solar_maximum, tes_range, ground_temp, optimal_specifications.at(i), output_file);
+            //    });
+
+            simulate_heat_solar_combination(static_cast<HeatOptions>(heat_option_int), static_cast<SolarOptions>(solar_option_int), solar_maximum, tes_range, ground_temp, optimal_specifications.at(i), output_file);
+            ++i;
+        }
+    }
+
+    return optimal_specifications;
+}
+
+void HeatNinja::simulate_heat_solar_combination(HeatOptions hp_option, SolarOptions solar_option, int solar_maximum, float tes_range, float ground_temp, TesTariffSpecs& optimal_spec, std::ofstream& output_file) {
+    const std::array<float, 24>& temp_profile = select_temp_profile(hp_option, this->hp_temp_profile, this->temp_profile);
+    const float cop_worst = calculate_cop_worst(hp_option, hot_water_temp, coldest_outside_temp);
+    float hp_electrical_power = calculate_hp_electrical_power(hp_option, boiler_demand.max_hourly, hp_demand.max_hourly, cop_worst);
+    float optimum_tes_npc = 1000000;
+    int solar_size_range = calculate_solar_size_range(solar_option, solar_maximum);
+
+    SolarSizeLoop(hp_option, solar_option, solar_size_range, optimum_tes_npc, solar_maximum, tes_range, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, output_file);
+
+    //std::cout << optimal_spec.cap_ex << '\n';
 }
 
 #ifndef EM_COMPATIBLE
@@ -1140,7 +1174,7 @@ float HeatNinja::calculate_electrical_demand_for_heating(float& tes_state_of_cha
     }
 }
 
-void HeatNinja::calculate_electrical_demand_for_tes_charging(float& electrical_demand_current, float& tes_state_of_charge, float tes_charge_full, Tariff tariff, float hour, float hp_electrical_power, float cop_current, float agile_tariff_current) {
+void HeatNinja::calculate_electrical_demand_for_tes_charging(float& electrical_demand_current, float& tes_state_of_charge, float tes_charge_full, Tariff tariff, int hour, float hp_electrical_power, float cop_current, float agile_tariff_current) {
     // Charges TES at off peak electricity times
     if (tes_state_of_charge < tes_charge_full &&
         ((tariff == Tariff::FlatRate && 12 < hour && hour < 16) ||
@@ -1160,6 +1194,159 @@ void HeatNinja::calculate_electrical_demand_for_tes_charging(float& electrical_d
             electrical_demand_current = hp_electrical_power;
         }
     }
+}
+
+void HeatNinja::boost_tes_and_electrical_demand(float& tes_state_of_charge, float& electrical_demand_current, float pv_remaining_current, float tes_charge_boost, float hp_electrical_power, float cop_boost) {
+    //Boost temperature if any spare PV generated electricity, as reduced cop, raises to nominal temp above first
+    const float tes_boost_state_charge_diff = tes_charge_boost - tes_state_of_charge;
+    if (pv_remaining_current > 0 && tes_boost_state_charge_diff > 0) {
+        if ((tes_boost_state_charge_diff < (pv_remaining_current * cop_boost)) && (tes_boost_state_charge_diff < ((hp_electrical_power - electrical_demand_current) * cop_boost))) {
+            electrical_demand_current += tes_boost_state_charge_diff / cop_boost;
+            tes_state_of_charge = tes_charge_boost;
+        }
+        else if (pv_remaining_current < hp_electrical_power) {
+            tes_state_of_charge += pv_remaining_current * cop_boost;
+            electrical_demand_current += pv_remaining_current;
+        }
+        else {
+            tes_state_of_charge += (hp_electrical_power - electrical_demand_current) * cop_boost;
+            electrical_demand_current = hp_electrical_power;
+        }
+    }
+}
+
+void HeatNinja::recharge_tes_to_minimum(float& tes_state_of_charge, float& electrical_demand_current, float tes_charge_min, float hp_electrical_power, float cop_current) {
+    if (tes_state_of_charge < tes_charge_min) { // Take back up to 10L capacity if possible no matter what time
+        if ((tes_charge_min - tes_state_of_charge) < (hp_electrical_power - electrical_demand_current) * cop_current) {
+            electrical_demand_current += (tes_charge_min - tes_state_of_charge) / cop_current;
+            tes_state_of_charge = tes_charge_min;
+        }
+        else if (electrical_demand_current < hp_electrical_power) { // Can't take all the way back up to 10L charge
+            tes_state_of_charge += (hp_electrical_power - electrical_demand_current) * cop_current;
+        }
+    }
+}
+
+void HeatNinja::add_electrical_import_cost_to_opex(float& operational_costs_off_peak, float& operational_costs_peak, float electrical_import, Tariff tariff, float agile_tariff_current, int hour) {
+    switch (tariff)
+    {
+    case Tariff::FlatRate:
+        // Flat rate tariff https://www.nimblefins.co.uk/average-cost-electricity-kwh-uk#:~:text=Unit%20Cost%20of%20Electricity%20per,more%20than%20the%20UK%20average
+        // Average solar rate https://www.greenmatch.co.uk/solar-energy/solar-panels/solar-panel-grants
+        operational_costs_peak += 0.163f * electrical_import;
+        break;
+    case Tariff::Economy7:
+        // Economy 7 tariff, same source as flat rate above
+        if (hour < 6 || hour == 23) { // Off Peak
+            operational_costs_off_peak += 0.095f * electrical_import;
+        }
+        else { // Peak
+            operational_costs_peak += 0.199f * electrical_import;
+        }
+        break;
+    case Tariff::BulbSmart:
+        // Bulb smart, for East Midlands values 2021
+        // https://help.bulb.co.uk/hc/en-us/articles/360017795731-About-Bulb-s-smart-tariff
+        if (15 < hour && hour < 19) { // Peak winter times throughout the year
+            operational_costs_peak += 0.2529f * electrical_import;
+        }
+        else { // Off peak
+            operational_costs_off_peak += 0.1279f * electrical_import;
+        }
+        break;
+    case Tariff::OctopusGo:
+        // Octopus Go EV, LE10 0YE 2012, https://octopus.energy/go/rates/
+        // https://www.octopusreferral.link/octopus-energy-go-tariff/
+        if (0 <= hour && hour < 5) { // Off Peak
+            operational_costs_off_peak += 0.05f * electrical_import;
+        }
+        else { // Peak
+            operational_costs_peak += 0.1533f * electrical_import;
+        }
+        break;
+    default:
+        // Octopus Agile file 2020
+        // 2021 Octopus export rates https ://octopus.energy/outgoing/
+        if (agile_tariff_current < 9.0f) { // Off peak, lower range of variable costs
+            operational_costs_off_peak += (agile_tariff_current / 100) * electrical_import;
+        }
+        else { // Peak, upper range of variable costs
+            operational_costs_peak += (agile_tariff_current / 100) * electrical_import;
+        }
+        break;
+    }
+}
+
+void HeatNinja::subtract_pv_revenue_from_opex(float& operational_costs_off_peak, float& operational_costs_peak, float pv_equivalent_revenue, Tariff tariff, float agile_tariff_current, int hour) {
+    switch (tariff)
+    {
+    case Tariff::FlatRate:
+        // Flat rate tariff https://www.nimblefins.co.uk/average-cost-electricity-kwh-uk#:~:text=Unit%20Cost%20of%20Electricity%20per,more%20than%20the%20UK%20average
+        // Average solar rate https://www.greenmatch.co.uk/solar-energy/solar-panels/solar-panel-grants
+        operational_costs_peak -= pv_equivalent_revenue * (0.163f + 0.035f) / 2;
+        break;
+    case Tariff::Economy7:
+        // Economy 7 tariff, same source as flat rate above
+        if (hour < 6 || hour == 23) { // Off Peak
+            operational_costs_off_peak -= pv_equivalent_revenue * (0.095f + 0.035f) / 2;
+        }
+        else { // Peak
+            operational_costs_peak -= pv_equivalent_revenue * (0.199f + 0.035f) / 2;
+        }
+        break;
+    case Tariff::BulbSmart:
+        // Bulb smart, for East Midlands values 2021
+        // https://help.bulb.co.uk/hc/en-us/articles/360017795731-About-Bulb-s-smart-tariff
+        if (15 < hour && hour < 19) { // Peak winter times throughout the year
+            operational_costs_peak -= pv_equivalent_revenue * (0.2529f + 0.035f) / 2;
+        }
+        else { // Off peak
+            operational_costs_off_peak -= pv_equivalent_revenue * (0.1279f + 0.035f) / 2;
+        }
+        break;
+    case Tariff::OctopusGo:
+        // Octopus Go EV, LE10 0YE 2012, https://octopus.energy/go/rates/
+        // https://www.octopusreferral.link/octopus-energy-go-tariff/
+        if (0 <= hour && hour < 5) { // Off Peak
+            operational_costs_off_peak -= pv_equivalent_revenue * (0.05f + 0.03f) / 2;
+        }
+        else { // Peak
+            operational_costs_peak -= pv_equivalent_revenue * (0.1533f + 0.03f) / 2;
+        }
+        break;
+    default:
+        // Octopus Agile file 2020
+        // 2021 Octopus export rates https ://octopus.energy/outgoing/
+        if (agile_tariff_current < 9.0f) { // Off peak, lower range of variable costs
+            operational_costs_off_peak -= pv_equivalent_revenue * ((agile_tariff_current / 100) + 0.055f) / 2;
+        }
+        else { // Peak, upper range of variable costs
+            operational_costs_peak -= pv_equivalent_revenue * ((agile_tariff_current / 100) + 0.055f) / 2;
+        }
+        break;
+    }
+}
+
+float HeatNinja::calculate_emissions_solar_thermal(float solar_thermal_generation_current) {
+    // Operational emissions summation
+    // 22.5 average ST
+    // from https ://post.parliament.uk/research-briefings/post-pn-0523/
+    return solar_thermal_generation_current * 22.5f;
+}
+
+float HeatNinja::calculate_emissions_pv_generation(float pv_generation_current, float pv_equivalent_revenue, float grid_emissions, int pv_size) {
+    // https://www.parliament.uk/globalassets/documents/post/postpn_383-carbon-footprint-electricity-generation.pdf
+    // 75 for PV, 75 - Grid_Emissions show emissions saved for the grid or for reducing other electrical bills
+    if (pv_size > 0) {
+        return (pv_generation_current - pv_equivalent_revenue) * 75 + pv_equivalent_revenue * (75 - grid_emissions);
+    }
+    else {
+        return 0;
+    }
+}
+
+float HeatNinja::calculate_emissions_grid_import(float electrical_import, float grid_emissions) {
+    return electrical_import * grid_emissions;
 }
 
 void HeatNinja::calcHeaterDay(const std::array<float, 24>* temp_profile, float& inside_temp_current, float ratio_sg_south, float ratio_sg_north, float cwt_current, float dhw_mf_current, float& tes_state_of_charge, float tes_charge_full, float tes_charge_boost, float tes_charge_max, float tes_radius, float ground_temp, HeatOptions hp_option, SolarOptions solar_option, int pv_size, int solar_thermal_size, const float hp_electrical_power, Tariff tariff, float& tes_volume_current, float& operational_costs_peak, float& operational_costs_off_peak, float& operation_emissions, float& solar_thermal_generation_total, float ratio_roof_south, float tes_charge_min, size_t& hour_year_counter) {
@@ -1193,128 +1380,45 @@ void HeatNinja::calcHeaterDay(const std::array<float, 24>* temp_profile, float& 
 
         const float solar_thermal_generation_current = calculate_solar_thermal_generation_current(solar_option, tes_th, solar_thermal_size, incident_irradiance_roof_south, outside_temp_current);
         tes_state_of_charge += solar_thermal_generation_current;
+        solar_thermal_generation_total += solar_thermal_generation_current;
         // Dumps any excess solar generated heat to prevent boiling TES
         tes_state_of_charge = std::min(tes_state_of_charge, tes_charge_max);
 
         const float space_hr_demand = calculate_hourly_space_demand(inside_temp_current, desired_min_temp_current, cop.current, tes_state_of_charge, dhw_hr_demand, hp_electrical_power);
 
         float electrical_demand_current = calculate_electrical_demand_for_heating(tes_state_of_charge, space_hr_demand + dhw_hr_demand, hp_electrical_power, cop.current);
-        calculate_electrical_demand_for_tes_charging(electrical_demand_current, tes_state_of_charge, tes_charge_full, tariff, hour, hp_electrical_power, cop.current, agile_tariff_current);
-        float pv_remaining_current = pv_generation_current - electrical_demand_current;
+        calculate_electrical_demand_for_tes_charging(electrical_demand_current, tes_state_of_charge, tes_charge_full, tariff, static_cast<int>(hour), hp_electrical_power, cop.current, agile_tariff_current);
+        const float pv_remaining_current = pv_generation_current - electrical_demand_current;
 
         //Boost temperature if any spare PV generated electricity, as reduced cop, raises to nominal temp above first
-        const float tes_boost_state_charge_diff = tes_charge_boost - tes_state_of_charge;
-        if (pv_remaining_current > 0 && tes_boost_state_charge_diff > 0) {
-            if ((tes_boost_state_charge_diff < (pv_remaining_current * cop.boost)) && (tes_boost_state_charge_diff < ((hp_electrical_power - electrical_demand_current) * cop.boost))) {
-                electrical_demand_current += tes_boost_state_charge_diff / cop.boost;
-                tes_state_of_charge = tes_charge_boost;
-            }
-            else if (pv_remaining_current < hp_electrical_power) {
-                tes_state_of_charge += pv_remaining_current * cop.boost;
-                electrical_demand_current += pv_remaining_current;
-            }
-            else {
-                tes_state_of_charge += (hp_electrical_power - electrical_demand_current) * cop.boost;
-                electrical_demand_current = hp_electrical_power;
-            }
-        }
+        boost_tes_and_electrical_demand(tes_state_of_charge, electrical_demand_current, pv_remaining_current, tes_charge_boost, hp_electrical_power, cop.boost);
 
-        //std::cout << tes_state_of_charge << ' ' << tes_charge_min << ' ' << electrical_demand_current << '\n';
-        if (tes_state_of_charge < tes_charge_min) { // Take back up to 10L capacity if possible no matter what time
-            if ((tes_charge_min - tes_state_of_charge) < (hp_electrical_power - electrical_demand_current) * cop.current) {
-                electrical_demand_current += (tes_charge_min - tes_state_of_charge) / cop.current;
-                tes_state_of_charge = tes_charge_min;
-            }
-            else if (electrical_demand_current < hp_electrical_power) { // Can't take all the way back up to 10L charge
-                tes_state_of_charge += (hp_electrical_power - electrical_demand_current) * cop.current;
-            }
-        }
+        recharge_tes_to_minimum(tes_state_of_charge, electrical_demand_current, tes_charge_min, hp_electrical_power, cop.current);
 
-        float electrical_import;
         float pv_equivalent_revenue;
-        if (pv_generation_current > electrical_demand_current) {
-            // Generating more electricity than using
-            pv_equivalent_revenue = pv_generation_current - electrical_demand_current;
+        float electrical_import;
+        if (pv_generation_current > electrical_demand_current) { // Generating more electricity than using
+            pv_equivalent_revenue = pv_remaining_current;
             electrical_import = 0;
+            subtract_pv_revenue_from_opex(operational_costs_off_peak, operational_costs_peak, pv_equivalent_revenue, tariff, agile_tariff_current, static_cast<int>(hour));
         }
         else {
             pv_equivalent_revenue = 0;
-            electrical_import = electrical_demand_current - pv_generation_current;
+            electrical_import = -pv_remaining_current;
+            add_electrical_import_cost_to_opex(operational_costs_off_peak, operational_costs_peak, electrical_import, tariff, agile_tariff_current, static_cast<int>(hour));
         }
 
-        // Operational costs summation
-        //std::cout << tariff << ' ' << operational_costs_peak << '\n';
-        switch (tariff)
-        {
-        case Tariff::FlatRate:
-            // Flat rate tariff https://www.nimblefins.co.uk/average-cost-electricity-kwh-uk#:~:text=Unit%20Cost%20of%20Electricity%20per,more%20than%20the%20UK%20average
-            // Average solar rate https://www.greenmatch.co.uk/solar-energy/solar-panels/solar-panel-grants
-            operational_costs_peak += 0.163f * electrical_import - pv_equivalent_revenue * (0.163f + 0.035f) / 2;
-            break;
-        case Tariff::Economy7:
-            // Economy 7 tariff, same source as flat rate above
-            if (hour < 6 || hour == 23) { // Off Peak
-                operational_costs_off_peak += 0.095f * electrical_import - pv_equivalent_revenue * (0.095f + 0.035f) / 2;
-            }
-            else { // Peak
-                operational_costs_peak += 0.199f * electrical_import - pv_equivalent_revenue * (0.199f + 0.035f) / 2;
-            }
-            break;
-        case Tariff::BulbSmart:
-            // Bulb smart, for East Midlands values 2021
-            // https://help.bulb.co.uk/hc/en-us/articles/360017795731-About-Bulb-s-smart-tariff
-            if (15 < hour && hour < 19) { // Peak winter times throughout the year
-                operational_costs_peak += 0.2529f * electrical_import - pv_equivalent_revenue * (0.2529f + 0.035f) / 2;
-            }
-            else { // Off peak
-                operational_costs_off_peak += 0.1279f * electrical_import - pv_equivalent_revenue * (0.1279f + 0.035f) / 2;
-            }
-            break;
-        case Tariff::OctopusGo:
-            // Octopus Go EV, LE10 0YE 2012, https://octopus.energy/go/rates/
-            // https://www.octopusreferral.link/octopus-energy-go-tariff/
-            if (0 <= hour && hour < 5) { // Off Peak
-                operational_costs_off_peak += 0.05f * electrical_import - pv_equivalent_revenue * (0.05f + 0.03f) / 2;
-            }
-            else { // Peak
-                operational_costs_peak += 0.1533f * electrical_import - pv_equivalent_revenue * (0.1533f + 0.03f) / 2;
-            }
-            break;
-        default:
-            // Octopus Agile file 2020
-            // 2021 Octopus export rates https ://octopus.energy/outgoing/
-            if (agile_tariff_current < 9.0f) { // Off peak, lower range of variable costs
-                operational_costs_off_peak += (agile_tariff_current / 100) * electrical_import - pv_equivalent_revenue * ((agile_tariff_current / 100) + 0.055f) / 2;
-            }
-            else { // Peak, upper range of variable costs
-                operational_costs_peak += (agile_tariff_current / 100) * electrical_import - pv_equivalent_revenue * ((agile_tariff_current / 100) + 0.055f) / 2;
-            }
-            break;
-        }
-
-        // Operational emissions summation
-        // 22.5 average ST
-        // from https ://post.parliament.uk/research-briefings/post-pn-0523/
-        float operational_emissions_current = solar_thermal_generation_current * 22.5f;
-
-        if (pv_size > 0) {
-            operational_emissions_current += (pv_generation_current - pv_equivalent_revenue) * 75 + pv_equivalent_revenue * (75 - grid_emissions);
-        }
-        // https://www.parliament.uk/globalassets/documents/post/postpn_383-carbon-footprint-electricity-generation.pdf
-        // 75 for PV, 75 - Grid_Emissions show emissions saved for the grid or for reducing other electrical bills
-        operational_emissions_current += electrical_import * grid_emissions;
-        operation_emissions += operational_emissions_current;
-        //fmt::print("{}\n", operational_costs_peak);
-        //std::cout << "e: " << operational_emissions_current << '\n';
-        solar_thermal_generation_total += solar_thermal_generation_current;
+        operation_emissions += calculate_emissions_solar_thermal(solar_thermal_generation_current) +
+            calculate_emissions_pv_generation(pv_generation_current, pv_equivalent_revenue, grid_emissions, pv_size) +
+            calculate_emissions_grid_import(electrical_import, grid_emissions);
         hour_year_counter++;
-    }
+    }    
 }
 
 std::string HeatNinja::initHeaterTesSettings() {
     // HEATER & TES SETTINGS
     //std::cout << "Electrified heating options at annual costs:" << '\n';
-    std::array<TesTariffSpecs, 21> optimum_tes_and_tariff_spec;
+    //std::array<TesTariffSpecs, 21> optimum_tes_and_tariff_spec;
 
     float ground_temp = 15 - (latitude - 50) * (4.0f / 9.0f); // Linear regression ground temp across UK at 100m depth
     float tes_range = tes_volume_max / 0.1f;
@@ -1325,16 +1429,20 @@ std::string HeatNinja::initHeaterTesSettings() {
 
     std::ofstream output_file;
     output_file.open("../matlab/output.txt");
+    std::array<HeatNinja::TesTariffSpecs, 21> optimum_tes_and_tariff_spec = simulate_heat_solar_combinations(solar_maximum, tes_range, ground_temp, output_file);
 
 #ifdef EM_COMPATIBLE
     //SINGLE THREAD
-    HpOptionLoop(solar_maximum, tes_range, ground_temp, optimum_tes_and_tariff_spec, output_file);
+    //std::array<HeatNinja::TesTariffSpecs, 21> optimum_tes_and_tariff_spec = simulate_heat_solar_combinations(solar_maximum, tes_range, ground_temp, output_file);
+    //HpOptionLoop(solar_maximum, tes_range, ground_temp, optimum_tes_and_tariff_spec, output_file);
 #else
+    //HpOptionLoop(solar_maximum, tes_range, ground_temp, optimum_tes_and_tariff_spec, output_file);
+    
     //MULTI THREADED
     //HpOptionLoop_Thread(solar_maximum, tes_range, ground_temp, optimum_tes_and_tariff_spec);
     // EXECUTION:PAR_UNSEQ
     //HpOptionLoop(solar_maximum, tes_range, ground_temp, optimum_tes_and_tariff_spec);
-    HPSolarOptionLoop_ParUnseq(solar_maximum, tes_range, optimum_tes_and_tariff_spec, ground_temp, output_file);
+    //HPSolarOptionLoop_ParUnseq(solar_maximum, tes_range, optimum_tes_and_tariff_spec, ground_temp, output_file);
 #endif
     output_file.close();
     std::cout << "\n--- Optimum TES and Net Present Cost per Heating & Solar Option ---";
@@ -1346,7 +1454,7 @@ std::string HeatNinja::initHeaterTesSettings() {
 
     for (const auto& s : optimum_tes_and_tariff_spec) {
         //fmt::print("[ {}, {}, {}, {}, {}, {}, {}, {}, {} ]\n", s.total_operational_cost, s.cap_ex, s.hp_option, s.solar_option, s.pv_size, s.solar_thermal_size, s.tes_volume, s.net_present_cost, s.operation_emissions);
-        std::cout << heat_opt_names.at(static_cast<int>(s.hp_option)) << ", " << solar_opt_names.at(static_cast<int>(s.solar_option)) << ", " << s.pv_size << ", " << s.solar_thermal_size << ", " << s.tes_volume << ", " << tools::to_string_with_precision(s.total_operational_cost, 0) << ", " << tools::to_string_with_precision(s.cap_ex, 0) << ", " << tools::to_string_with_precision(s.net_present_cost, 0) << ", " << tools::to_string_with_precision(s.operation_emissions, 0) << ", " << tariff_names.at(static_cast<int>(s.tariff)) << "\n";
+        std::cout << heat_opt_names.at(static_cast<int>(s.hp_option)) << ", " << solar_opt_names.at(static_cast<int>(s.solar_option)) << ", " << s.pv_size << ", " << s.solar_thermal_size << ", " << s.tes_volume << ", " << tools::to_string_with_precision(s.total_operational_cost, 1) << ", " << tools::to_string_with_precision(s.cap_ex, 1) << ", " << tools::to_string_with_precision(s.net_present_cost, 1) << ", " << tools::to_string_with_precision(s.operation_emissions, 1) << ", " << tariff_names.at(static_cast<int>(s.tariff)) << "\n";
         //fmt::print("total_operational_cost {},\ncap_ex {},\nhp_option {},\nsolar_option {},\npv_size {},\nsolar_thermal_size {},\ntes_volume {},\nnet_present_cost {},\noperation_emissions {} \n\n\n", s.total_operational_cost, s.cap_ex, s.hp_option, s.solar_option, s.pv_size, s.solar_thermal_size, s.tes_volume, s.net_present_cost, s.operation_emissions);
     }
 

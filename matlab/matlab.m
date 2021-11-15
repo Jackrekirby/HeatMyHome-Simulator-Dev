@@ -1,22 +1,22 @@
 clear all
 clc
 
-data = readtable('output_file2.txt');
+data = readtable('output.txt');
 data = data{:,:};
 disp('imported')
 
 %% HEAT, SOLAR, SOLARSIZE, TES, TARIFF, OPEX
 clc
-npc_per_tariff = zeros(5, 3690);
+npc_per_tariff = zeros(5, length(data)/5);
 for tariff = 1:5
     %npc_of_tariff_indices = data(:, 5) == tariff - 1;
-    npc_per_tariff(tariff, :) = data(tariff:5:18450, 6);
+    npc_per_tariff(tariff, :) = data(tariff:5:length(data), 6);
 end
 
 [min_tariff_npc_vec, ind] = min(npc_per_tariff);
 
 min_tariff_npc = reshape(min_tariff_npc_vec, 30, []);
-solar_size_mat = reshape(data(tariff:5:18450, 3), 30, []);
+solar_size_mat = reshape(data(tariff:5:length(data), 3), 30, []);
 solar_size = solar_size_mat(1, :);
 
 iStart = 1;

@@ -2,7 +2,7 @@
 
 /* Tasks
 1. asg_s ... should not be precalculated
-2. make things private
+2. make things private (SCRAP no classes)
 3. store less class variables, locally scope them
 4. should const things be input parameters / file imports? (avoid large hardcoded variables)
 5. error handling: such as if file of long and latitude doesnt exist
@@ -12,6 +12,7 @@
 9. structs which are only in the cpp should be declared there
 10. pass values by const
 11. updates loops from y + (int * x) to float
+12. dont pass this unless this is needed (this being heat ninja object)
 */
 
 #include <string>
@@ -240,9 +241,21 @@ public:
 
     std::vector<float> importAgileTariff(const std::string& data_type);
 
+    const std::array<float, 24>& select_temp_profile(HeatOptions hp_option, const std::array<float, 24>& hp_temp_profile, const std::array<float, 24>& erh_temp_profile);
+
+    float calculate_cop_worst(HeatOptions hp_option, float hot_water_temp, float coldest_outside_temp);
+
+    float calculate_hp_electrical_power(HeatOptions hp_option, float max_hourly_erh_demand, float max_hourly_hp_demand, float cop_worst);
+
     void HpOptionLoop(int solar_maximum, float tes_range, float ground_temp, std::array<TesTariffSpecs, 21>& optimum_tes_and_tariff_spec, std::ofstream& output_file);
 
+    int calculate_solar_size_range(SolarOptions solar_option, int solar_maximum);
+
     void SolarOptionLoop(HeatOptions hp_option, int solar_maximum, float tes_range, float ground_temp, std::array<TesTariffSpecs, 21>& optimum_tes_and_tariff_spec, std::ofstream& output_file);
+
+    std::array<TesTariffSpecs, 21> simulate_heat_solar_combinations(int solar_maximum, float tes_range, float ground_temp, std::ofstream& output_file);
+
+    void simulate_heat_solar_combination(HeatOptions hp_option, SolarOptions solar_option, int solar_maximum, float tes_range, float ground_temp, TesTariffSpecs& optimal_spec, std::ofstream& output_file);
 
 #ifndef EM_COMPATIBLE
     void HpOptionLoop_Thread(int solar_maximum, float tes_range, float ground_temp, std::array<TesTariffSpecs, 21>& optimum_tes_and_tariff_spec, std::ofstream& output_file);
@@ -279,7 +292,19 @@ public:
 
     float calculate_electrical_demand_for_heating(float& tes_state_of_charge, float space_water_demand, float hp_electrical_power, float cop_current);
 
-    void calculate_electrical_demand_for_tes_charging(float& electrical_demand_current, float& tes_state_of_charge, float tes_charge_full, Tariff tariff, float hour, float hp_electrical_power, float cop_current, float agile_tariff_current);
+    void calculate_electrical_demand_for_tes_charging(float& electrical_demand_current, float& tes_state_of_charge, float tes_charge_full, Tariff tariff, int hour, float hp_electrical_power, float cop_current, float agile_tariff_current);
+
+    void boost_tes_and_electrical_demand(float& tes_state_of_charge, float& electrical_demand_current, float pv_remaining_current, float tes_charge_boost, float hp_electrical_power, float cop_boost);
+
+    void recharge_tes_to_minimum(float& tes_state_of_charge, float& electrical_demand_current, float tes_charge_min, float hp_electrical_power, float cop_current);
+
+    void add_electrical_import_cost_to_opex(float& operational_costs_off_peak, float& operational_costs_peak, float electrical_import, Tariff tariff, float agile_tariff_current, int hour);
+
+    void subtract_pv_revenue_from_opex(float& operational_costs_off_peak, float& operational_costs_peak, float pv_equivalent_revenue, Tariff tariff, float agile_tariff_current, int hour);
+
+    float calculate_emissions_solar_thermal(float solar_thermal_generation_current);
+    float calculate_emissions_pv_generation(float pv_generation_current, float pv_equivalent_revenue, float grid_emissions, int pv_size);
+    float calculate_emissions_grid_import(float electrical_import, float grid_emissions);
 
     void calcHeaterDay(const std::array<float, 24>* temp_profile, float& inside_temp_current, float ratio_sg_south, float ratio_sg_north, float cwt_current, float dhw_mf_current, float& tes_state_of_charge, float tes_charge_full, float tes_charge_boost, float tes_charge_max, float tes_radius, float ground_temp, HeatOptions hp_option, SolarOptions solar_option, int pv_size, int solar_thermal_size, float hp_electrical_power, Tariff tariff, float& tes_volume_current, float& operational_costs_peak, float& operational_costs_off_peak, float& operation_emissions, float& solar_thermal_generation_total, float ratio_roof_south, float tes_charge_min, size_t& hour_year_counter);
 

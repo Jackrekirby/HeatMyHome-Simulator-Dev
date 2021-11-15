@@ -65,6 +65,5 @@ extern "C" {
 
 int main()
 {
-    //std::cout << postcode_id("CM24 7AL") << '\n';
     runSimulationWithDefaultParameters();
 }
