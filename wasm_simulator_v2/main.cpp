@@ -2,6 +2,7 @@
 
 #include "heatninja.h"
 #include <iostream>
+#include <fstream>
 
 #ifndef EM_COMPATIBLE
 #include <chrono>
@@ -45,6 +46,57 @@ void runSimulationWithDefaultParameters()
     
 }
 
+void readInputFile(std::string filename) {
+    std::ifstream infile(filename);
+    std::string line;
+    int i = 0;
+    while (std::getline(infile, line))
+    {
+        std::stringstream ss(line);
+
+        std::string postcode;
+        std::getline(ss, postcode, ',');
+
+        if (postcode == "postcode") continue;
+        ++i;
+        if (i < 70) {
+            continue;
+        }
+
+        std::string temporary;
+
+        std::getline(ss, temporary, ',');
+        float latitude = std::stof(temporary);
+
+        std::getline(ss, temporary, ',');
+        float longitude = std::stof(temporary);
+
+        std::getline(ss, temporary, ',');
+        int num_occupants = std::stoi(temporary);
+
+        std::getline(ss, temporary, ',');
+        float house_size = std::stof(temporary);
+
+        std::getline(ss, temporary, ',');
+        float temp = std::stof(temporary);
+
+        std::getline(ss, temporary, ',');
+        int epc_space_heating = std::stoi(temporary);
+
+        std::getline(ss, temporary, ',');
+        float tes_volume_max = std::stof(temporary);
+    
+        std::cout << postcode << ", " << latitude << ", " << longitude << ", " << num_occupants << ", " << house_size << ", " << temp << ", " << epc_space_heating << ", " << tes_volume_max << ", " << '\n';
+        runSimulation(postcode.c_str(), latitude, longitude, num_occupants, house_size, temp, epc_space_heating, tes_volume_max);
+
+        //if (i > 5) {
+        //    break;
+        //}
+        
+    }
+    infile.close();
+}
+
 // FUNCTIONS ACCESSIBLE FROM JAVASCRIPT
 extern "C" {
     const char* runSimulation(const char* postcode_char, float latitude, float longitude,
@@ -65,5 +117,6 @@ extern "C" {
 
 int main()
 {
-    runSimulationWithDefaultParameters();
+    readInputFile("input_list.csv");
+    //runSimulationWithDefaultParameters();
 }

@@ -503,8 +503,17 @@ float HeatNinja::initColdestOutsideTemp() {
     const std::map<std::string, float> coldest_outside_temps = { { "50.0_-3.5", 4.61f }, { "50.0_-4.0", 4.554f }, { "50.0_-4.5", 4.406f }, { "50.0_-5.0", 4.017f }, { "50.0_-5.5", 4.492f }, { "50.5_-0.5", 3.02f }, { "50.5_-1.0", 3.188f }, { "50.5_-1.5", 2.812f }, { "50.5_-2.0", 2.583f }, { "50.5_-2.5", 2.774f }, { "50.5_-3.0", 2.697f }, { "50.5_-3.5", 1.744f }, { "50.5_-4.0", 0.854f }, { "50.5_-4.5", 1.27f }, { "50.5_-5.0", 2.708f }, { "50.5_0.0", 2.886f }, { "50.5_0.5", 2.764f }, { "51.0_-0.5", -3.846f }, { "51.0_-1.0", -4.285f }, { "51.0_-1.5", -4.421f }, { "51.0_-2.0", -4.274f }, { "51.0_-2.5", -3.764f }, { "51.0_-3.0", -2.635f }, { "51.0_-3.5", -1.712f }, { "51.0_-4.0", -0.232f }, { "51.0_-4.5", 1.638f }, { "51.0_0.0", -3.344f }, { "51.0_0.5", -2.101f }, { "51.0_1.0", 0.307f }, { "51.0_1.5", 1.271f }, { "51.5_-0.5", -5.969f }, { "51.5_-1.0", -5.673f }, { "51.5_-1.5", -5.09f }, { "51.5_-2.0", -4.292f }, { "51.5_-2.5", -3.039f }, { "51.5_-3.0", -1.591f }, { "51.5_-3.5", 0.221f }, { "51.5_-4.0", 1.249f }, { "51.5_-4.5", 2.001f }, { "51.5_-5.0", 2.948f }, { "51.5_0.0", -5.628f }, { "51.5_0.5", -4.165f }, { "51.5_1.0", -1.369f }, { "51.5_1.5", 1.813f }, { "52.0_-0.5", -5.601f }, { "52.0_-1.0", -5.283f }, { "52.0_-1.5", -4.854f }, { "52.0_-2.0", -4.37f }, { "52.0_-2.5", -3.7f }, { "52.0_-3.0", -3.597f }, { "52.0_-3.5", -3.13f }, { "52.0_-4.0", -2.297f }, { "52.0_-4.5", -0.642f }, { "52.0_-5.0", 2.044f }, { "52.0_-5.5", 3.622f }, { "52.0_0.0", -5.439f }, { "52.0_0.5", -4.533f }, { "52.0_1.0", -2.836f }, { "52.0_1.5", 0.146f }, { "52.5_-0.5", -4.979f }, { "52.5_-1.0", -4.814f }, { "52.5_-1.5", -4.451f }, { "52.5_-2.0", -3.991f }, { "52.5_-2.5", -3.603f }, { "52.5_-3.0", -3.359f }, { "52.5_-3.5", -3.007f }, { "52.5_-4.0", -0.479f }, { "52.5_-4.5", 2.769f }, { "52.5_0.0", -4.845f }, { "52.5_0.5", -4.0f }, { "52.5_1.0", -3.96f }, { "52.5_1.5", -1.778f }, { "52.5_2.0", 1.576f }, { "53.0_-0.5", -4.434f }, { "53.0_-1.0", -4.51f }, { "53.0_-1.5", -4.234f }, { "53.0_-2.0", -3.806f }, { "53.0_-2.5", -3.409f }, { "53.0_-3.0", -2.964f }, { "53.0_-3.5", -2.419f }, { "53.0_-4.0", -0.304f }, { "53.0_-4.5", 1.987f }, { "53.0_-5.0", 3.827f }, { "53.0_0.0", -4.07f }, { "53.0_0.5", -1.754f }, { "53.0_1.0", 0.277f }, { "53.0_1.5", 1.709f }, { "53.0_2.0", 2.397f }, { "53.5_-0.5", -4.156f }, { "53.5_-1.0", -4.141f }, { "53.5_-1.5", -3.834f }, { "53.5_-2.0", -3.492f }, { "53.5_-2.5", -2.729f }, { "53.5_-3.0", -1.344f }, { "53.5_-3.5", 0.446f }, { "53.5_-4.0", 1.524f }, { "53.5_-4.5", 2.578f }, { "53.5_0.0", -2.173f }, { "53.5_0.5", 1.351f }, { "54.0_-0.5", -2.622f }, { "54.0_-1.0", -3.424f }, { "54.0_-1.5", -3.834f }, { "54.0_-2.0", -3.837f }, { "54.0_-2.5", -2.766f }, { "54.0_-3.0", -0.56f }, { "54.0_-3.5", 1.22f }, { "54.0_-5.5", 3.297f }, { "54.0_-6.0", 1.151f }, { "54.0_-6.5", -1.496f }, { "54.0_-7.0", -3.164f }, { "54.0_-7.5", -3.294f }, { "54.0_-8.0", -2.848f }, { "54.0_0.0", 0.231f }, { "54.5_-0.5", 0.579f }, { "54.5_-1.0", -1.903f }, { "54.5_-1.5", -4.414f }, { "54.5_-2.0", -5.579f }, { "54.5_-2.5", -5.161f }, { "54.5_-3.0", -2.187f }, { "54.5_-3.5", -0.424f }, { "54.5_-4.0", 1.047f }, { "54.5_-4.5", 2.244f }, { "54.5_-5.0", 2.994f }, { "54.5_-5.5", 1.337f }, { "54.5_-6.0", -0.575f }, { "54.5_-6.5", -2.338f }, { "54.5_-7.0", -3.041f }, { "54.5_-7.5", -2.662f }, { "54.5_-8.0", -1.808f }, { "55.0_-1.5", -0.996f }, { "55.0_-2.0", -4.155f }, { "55.0_-2.5", -6.204f }, { "55.0_-3.0", -4.514f }, { "55.0_-3.5", -2.703f }, { "55.0_-4.0", -1.58f }, { "55.0_-4.5", -0.407f }, { "55.0_-5.0", 0.806f }, { "55.0_-5.5", 2.081f }, { "55.0_-6.0", 0.887f }, { "55.0_-6.5", -0.469f }, { "55.0_-7.0", -0.993f }, { "55.0_-7.5", -0.77f }, { "55.5_-1.5", 0.873f }, { "55.5_-2.0", -2.474f }, { "55.5_-2.5", -5.702f }, { "55.5_-3.0", -5.566f }, { "55.5_-3.5", -4.895f }, { "55.5_-4.0", -4.132f }, { "55.5_-4.5", -2.358f }, { "55.5_-5.0", -0.579f }, { "55.5_-5.5", 1.338f }, { "55.5_-6.0", 2.057f }, { "55.5_-6.5", 2.505f }, { "56.0_-2.0", 1.815f }, { "56.0_-2.5", 0.195f }, { "56.0_-3.0", -2.189f }, { "56.0_-3.5", -4.626f }, { "56.0_-4.0", -5.49f }, { "56.0_-4.5", -4.919f }, { "56.0_-5.0", -3.499f }, { "56.0_-5.5", -1.181f }, { "56.0_-6.0", 1.063f }, { "56.0_-6.5", 2.977f }, { "56.5_-2.5", -0.305f }, { "56.5_-3.0", -3.11f }, { "56.5_-3.5", -5.41f }, { "56.5_-4.0", -6.757f }, { "56.5_-4.5", -7.005f }, { "56.5_-5.0", -5.879f }, { "56.5_-5.5", -3.253f }, { "56.5_-6.0", 0.046f }, { "56.5_-6.5", 2.699f }, { "56.5_-7.0", 4.242f }, { "57.0_-2.0", 1.061f }, { "57.0_-2.5", -4.347f }, { "57.0_-3.0", -6.774f }, { "57.0_-3.5", -8.256f }, { "57.0_-4.0", -8.531f }, { "57.0_-4.5", -8.952f }, { "57.0_-5.0", -7.613f }, { "57.0_-5.5", -4.211f }, { "57.0_-6.0", -0.368f }, { "57.0_-6.5", 2.421f }, { "57.0_-7.0", 3.249f }, { "57.0_-7.5", 4.066f }, { "57.5_-2.0", 0.562f }, { "57.5_-2.5", -2.636f }, { "57.5_-3.0", -3.24f }, { "57.5_-3.5", -3.825f }, { "57.5_-4.0", -4.351f }, { "57.5_-4.5", -5.412f }, { "57.5_-5.0", -7.049f }, { "57.5_-5.5", -3.771f }, { "57.5_-6.0", 0.002f }, { "57.5_-6.5", 2.105f }, { "57.5_-7.0", 2.649f }, { "57.5_-7.5", 3.287f }, { "58.0_-3.5", 1.614f }, { "58.0_-4.0", -0.872f }, { "58.0_-4.5", -2.392f }, { "58.0_-5.0", -2.029f }, { "58.0_-5.5", 0.609f }, { "58.0_-6.0", 2.139f }, { "58.0_-6.5", 2.056f }, { "58.0_-7.0", 1.757f }, { "58.5_-3.0", 1.924f }, { "58.5_-3.5", 1.382f }, { "58.5_-4.0", 0.97f }, { "58.5_-4.5", 0.903f }, { "58.5_-5.0", 1.605f }, { "58.5_-5.5", 2.935f }, { "58.5_-6.0", 2.901f }, { "58.5_-6.5", 2.723f }, { "58.5_-7.0", 2.661f }, { "59.0_-2.5", 2.975f }, { "59.0_-3.0", 2.525f }, { "59.0_-3.5", 3.066f }, { "59.5_-1.5", 3.281f }, { "59.5_-2.5", 3.684f }, { "59.5_-3.0", 3.79f }, { "60.0_-1.0", 2.361f }, { "60.0_-1.5", 2.383f }, { "60.5_-1.0", 1.794f }, { "60.5_-1.5", 1.783f }, { "61.0_-1.0", 1.721f }
     };
 
-    const float lat_rounded = std::roundf(latitude * 2) / 2;
-    const float lon_rounded = std::roundf(longitude * 2) / 2;
+    float lat_rounded = std::roundf(latitude * 2) / 2;
+    float lon_rounded = std::roundf(longitude * 2) / 2;
+
+    if (lat_rounded == 0.0f) { // incase = -0.0 causes map finding issue
+        lat_rounded = 0.0f;
+    }
+    
+    if (lon_rounded == 0.0f) {
+        lon_rounded = 0.0f;
+    }    
+
     const std::string key = tools::to_string_with_precision(lat_rounded, 1) + "_" + tools::to_string_with_precision(lon_rounded, 1);
     return coldest_outside_temps.at(key);
 }
@@ -544,8 +553,15 @@ std::vector<float> HeatNinja::importDataFile(std::string filename) {
 std::vector<float> HeatNinja::importWeatherData(const std::string& data_type) {
     // using vector instead of array because: function exceeds stack size, consider moving some data to heap (C6262)
     // data_type = "outside_temps or solar_irradiances"
-    const float lat_rounded = std::roundf(latitude * 2) / 2;
-    const float lon_rounded = std::roundf(longitude * 2) / 2;
+    float lat_rounded = std::roundf(latitude * 2) / 2;
+    float lon_rounded = std::roundf(longitude * 2) / 2;
+    if (lat_rounded == 0.0f) { // incase = -0.0 causes map finding issue
+        lat_rounded = 0.0f;
+    }
+
+    if (lon_rounded == 0.0f) {
+        lon_rounded = 0.0f;
+    }
     const std::string filename = "assets/" + data_type + "/lat_" + tools::to_string_with_precision(lat_rounded, 1) + "_lon_" + tools::to_string_with_precision(lon_rounded, 1) + ".csv";
     //const std::string filename = fmt::format("{}\\lat_{:.1f}_lon_{:.1f}.csv", data_type, lat_rounded, lon_rounded);
     //fmt::print("{}, {}\n", std::filesystem::current_path().string(), filename);
@@ -640,6 +656,9 @@ void HeatNinja::SolarOptionLoop(HeatOptions hp_option, int solar_maximum, float 
     }
 }
 
+
+int file_index = 1449;
+
 std::array<HeatNinja::TesTariffSpecs, 21> HeatNinja::simulate_heat_solar_combinations(int solar_maximum, float tes_range, float ground_temp, std::ofstream& output_file) {
     //std::array<std::thread, 21> threads;
     std::array<HeatNinja::TesTariffSpecs, 21> optimal_specifications;
@@ -650,8 +669,12 @@ std::array<HeatNinja::TesTariffSpecs, 21> HeatNinja::simulate_heat_solar_combina
             //threads.at(i) = std::thread([this, i, heat_option_int, solar_option_int, solar_maximum, tes_range, ground_temp, &optimal_specifications, &output_file] {
             //    this->simulate_heat_solar_combination(static_cast<HeatOptions>(heat_option_int), static_cast<SolarOptions>(solar_option_int), solar_maximum, tes_range, ground_temp, optimal_specifications.at(i), output_file);
             //    });
-
+            std::stringstream ss;
+            ss << "../matlab/c_surfaces/" << file_index << ".csv";
+            output_file.open(ss.str());
             simulate_heat_solar_combination(static_cast<HeatOptions>(heat_option_int), static_cast<SolarOptions>(solar_option_int), solar_maximum, tes_range, ground_temp, optimal_specifications.at(i), output_file);
+            output_file.close();
+            ++file_index;
             ++i;
         }
     }
@@ -832,8 +855,10 @@ void HeatNinja::HPSolarOptionLoop_ParUnseq(int solar_maximum, float tes_range, s
 #endif
 
 void HeatNinja::SolarSizeLoop(HeatOptions hp_option, SolarOptions solar_option, int solar_size_range, float& optimum_tes_npc, int solar_maximum, float tes_range, float cop_worst, float hp_electrical_power, float ground_temp, TesTariffSpecs& current_tes_and_tariff_specs, const std::array<float, 24>* temp_profile, std::ofstream& output_file) {
+
     for (int solar_size = 0; solar_size < solar_size_range; ++solar_size) {
         //fmt::print("        solar_size {}\n", solar_size);
+
         TesOptionLoop(hp_option, solar_option, solar_size, solar_maximum, tes_range, cop_worst, hp_electrical_power, optimum_tes_npc, ground_temp, current_tes_and_tariff_specs, temp_profile, output_file);
     }
 }
@@ -870,11 +895,15 @@ void HeatNinja::TesOptionLoop(HeatOptions hp_option, SolarOptions solar_option, 
 
         //fmt::print("            tes_option {}\n", tes_option);
         float optimum_tariff = 1000000;
+        float min_npc_of_tariffs = 1000000;
         for (int tariff = 0; tariff < 5; ++tariff) {
             //fmt::print("                tariff {}\n", tariff);
-            TariffLoop(hp_option, solar_option, tes_volume_current, optimum_tariff, solar_thermal_size, pv_size, cop_worst, hp_electrical_power, optimum_tes_npc, current_tes_and_tariff_specs, ground_temp, static_cast<Tariff>(tariff), temp_profile, solar_size, capex, output_file);
+            TariffLoop(hp_option, solar_option, tes_volume_current, optimum_tariff, solar_thermal_size, pv_size, cop_worst, hp_electrical_power, optimum_tes_npc, current_tes_and_tariff_specs, ground_temp, static_cast<Tariff>(tariff), temp_profile, solar_size, capex, output_file, min_npc_of_tariffs);
         }
+        output_file << min_npc_of_tariffs;
+        if (tes_option + 1 < tes_range) output_file << ',';
     }
+    output_file << '\n';
 }
 
 float HeatNinja::calculateCumulativeDiscountRate(float discount_rate, int npc_years) {
@@ -945,7 +974,7 @@ float HeatNinja::calculate_capex_tes_volume(float tes_volume_current) {
     return 2068.3f * std::powf(tes_volume_current, 0.553f);
 }
 
-void HeatNinja::TariffLoop(HeatOptions hp_option, SolarOptions solar_option, float tes_volume_current, float& optimum_tariff, int solar_thermal_size, int pv_size, float cop_worst, const float hp_electrical_power, float& optimum_tes_npc, TesTariffSpecs& current_tes_and_tariff_specs, float ground_temp, Tariff tariff, const std::array<float, 24>* temp_profile, int solar_size, float capex, std::ofstream& output_file) {
+void HeatNinja::TariffLoop(HeatOptions hp_option, SolarOptions solar_option, float tes_volume_current, float& optimum_tariff, int solar_thermal_size, int pv_size, float cop_worst, const float hp_electrical_power, float& optimum_tes_npc, TesTariffSpecs& current_tes_and_tariff_specs, float ground_temp, Tariff tariff, const std::array<float, 24>* temp_profile, int solar_size, float capex, std::ofstream& output_file, float& min_npc_of_tariffs) {
     size_t hour_year_counter = 0;
     //std::cout << "here\n";
     float inside_temp_current = temp;  // Initial temp
@@ -991,7 +1020,10 @@ void HeatNinja::TariffLoop(HeatOptions hp_option, SolarOptions solar_option, flo
     std::array<std::string, 7> solar_opt_names = { "None", "PV", "FP", "ET", "FP+PV", "ET+PV", "PVT" };
     std::array<std::string, 5> tariff_names = { "Flat Rate", "Economy 7", "Bulb Smart", "Octopus Go", "Octopus Agile" };
 
-    output_file << static_cast<int>(hp_option) << ", " << static_cast<int>(solar_option) << ", " << solar_size << ", " << tes_volume_current << ", " << static_cast<int>(tariff) << ", " << tools::to_string_with_precision(capex + total_operational_cost * cumulative_discount_rate, 4) << "\n";
+    const float npc = capex + total_operational_cost * cumulative_discount_rate;
+    min_npc_of_tariffs = std::min(npc, min_npc_of_tariffs);
+
+    //output_file << static_cast<int>(hp_option) << ", " << static_cast<int>(solar_option) << ", " << solar_size << ", " << tes_volume_current << ", " << static_cast<int>(tariff) << ", " << tools::to_string_with_precision(npc, 4) << "\n";
 
     if (total_operational_cost < optimum_tariff) {
         optimum_tariff = total_operational_cost;
@@ -1398,13 +1430,13 @@ void HeatNinja::calcHeaterDay(const std::array<float, 24>* temp_profile, float& 
         float pv_equivalent_revenue;
         float electrical_import;
         if (pv_generation_current > electrical_demand_current) { // Generating more electricity than using
-            pv_equivalent_revenue = pv_remaining_current;
+            pv_equivalent_revenue = pv_generation_current - electrical_demand_current;
             electrical_import = 0;
             subtract_pv_revenue_from_opex(operational_costs_off_peak, operational_costs_peak, pv_equivalent_revenue, tariff, agile_tariff_current, static_cast<int>(hour));
         }
         else {
             pv_equivalent_revenue = 0;
-            electrical_import = -pv_remaining_current;
+            electrical_import = electrical_demand_current - pv_generation_current;
             add_electrical_import_cost_to_opex(operational_costs_off_peak, operational_costs_peak, electrical_import, tariff, agile_tariff_current, static_cast<int>(hour));
         }
 
@@ -1418,7 +1450,7 @@ void HeatNinja::calcHeaterDay(const std::array<float, 24>* temp_profile, float& 
 std::string HeatNinja::initHeaterTesSettings() {
     // HEATER & TES SETTINGS
     //std::cout << "Electrified heating options at annual costs:" << '\n';
-    //std::array<TesTariffSpecs, 21> optimum_tes_and_tariff_spec;
+    
 
     float ground_temp = 15 - (latitude - 50) * (4.0f / 9.0f); // Linear regression ground temp across UK at 100m depth
     float tes_range = tes_volume_max / 0.1f;
@@ -1428,7 +1460,9 @@ std::string HeatNinja::initHeaterTesSettings() {
     house_size_thermal_transmittance_product = house_size * thermal_transmittance / 1000;
 
     std::ofstream output_file;
-    output_file.open("../matlab/output.txt");
+    //output_file.open("../matlab/output.txt");
+    //std::array<TesTariffSpecs, 21> optimum_tes_and_tariff_spec;
+    //HpOptionLoop(solar_maximum, tes_range, ground_temp, optimum_tes_and_tariff_spec, output_file);
     std::array<HeatNinja::TesTariffSpecs, 21> optimum_tes_and_tariff_spec = simulate_heat_solar_combinations(solar_maximum, tes_range, ground_temp, output_file);
 
 #ifdef EM_COMPATIBLE
@@ -1444,7 +1478,7 @@ std::string HeatNinja::initHeaterTesSettings() {
     //HpOptionLoop(solar_maximum, tes_range, ground_temp, optimum_tes_and_tariff_spec);
     //HPSolarOptionLoop_ParUnseq(solar_maximum, tes_range, optimum_tes_and_tariff_spec, ground_temp, output_file);
 #endif
-    output_file.close();
+    //output_file.close();
     std::cout << "\n--- Optimum TES and Net Present Cost per Heating & Solar Option ---";
     std::cout << "\nHP Opt, Solar Opt, PV Size, Solar Size, TES Vol, OPEX, CAPEX, NPC, Emissions, Tariff\n";
 

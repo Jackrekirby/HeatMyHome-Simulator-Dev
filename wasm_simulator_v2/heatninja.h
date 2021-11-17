@@ -274,7 +274,7 @@ public:
     float calculate_capex_solar_thermal(SolarOptions solar_option, int solar_thermal_size);
     float calculate_capex_tes_volume(float tes_volume_current);
 
-    void TariffLoop(HeatOptions hp_option, SolarOptions solar_option, float tes_volume_current, float& optimum_tariff, int solar_thermal_size, int pv_size, float cop_worst, const float hp_electrical_power, float& optimum_tes_npc, TesTariffSpecs& current_tes_and_tariff_specs, float ground_temp, Tariff tariff, const std::array<float, 24>* temp_profile, int solar_size, float capex, std::ofstream& output_file);
+    void TariffLoop(HeatOptions hp_option, SolarOptions solar_option, float tes_volume_current, float& optimum_tariff, int solar_thermal_size, int pv_size, float cop_worst, const float hp_electrical_power, float& optimum_tes_npc, TesTariffSpecs& current_tes_and_tariff_specs, float ground_temp, Tariff tariff, const std::array<float, 24>* temp_profile, int solar_size, float capex, std::ofstream& output_file, float& min_npc_of_tariffs);
 
     std::array<float, 12> initRatiosRoofSouth();
 

@@ -28,7 +28,7 @@ ai = floor(linspace(1, p, 5));
 ti = ai;
 j = 0;
 figure;
-change_factor = 0.01;
+change_factor = 1;
 next_index_ratio = 0.5;
 while ~isempty(ai)
     disp(j)
@@ -59,7 +59,7 @@ grid minor;
 pause(1);
 
 %%
-change_factor = 0.5;
+change_factor = 1;
 ii = [];
 for i = 1:length(ai) - 1
     
@@ -154,11 +154,11 @@ function ii = next_indices(a, ai, x, change_factor, next_index_ratio)
                 end
                 ii = [ii, ai(i), mid_index, ai(i+1)];
                 x_mid = floor(next_index_ratio * (x(ai(i)) + x(ai(i + 1))));
-                plot([x(ai(i)), x(ai(i + 1))], [c1, c2], '-g', 'linewidth', 2);
+                plot([x(ai(i)), x(ai(i + 1))], [c1, c2], 'o-g', 'linewidth', 2);
                 plot(x_mid, estimate, '*g');
             else
                 x_mid = floor(next_index_ratio * (x(ai(i)) + x(ai(i + 1))));
-                plot([x(ai(i)), x(ai(i + 1))], [c1, c2], '-r', 'linewidth', 2);
+                plot([x(ai(i)), x(ai(i + 1))], [c1, c2], 'o-r', 'linewidth', 2);
                 plot(x_mid, estimate, '*r');
                 %plot(floor(next_index_ratio * (x(ai(i)) + x(ai(i + 1)))), estimate, '.c');
             end
