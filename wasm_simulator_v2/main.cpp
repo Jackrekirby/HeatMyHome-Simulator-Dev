@@ -97,6 +97,80 @@ void readInputFile(std::string filename) {
     infile.close();
 }
 
+struct NpcSurface {
+    std::vector<float> npcs;
+    int tes_vols;
+    int solar_sizes;
+
+    NpcSurface(int tes_vols, int solar_sizes, const std::vector<float>& npcs)
+        : tes_vols(tes_vols), solar_sizes(solar_sizes), npcs(npcs) {
+
+    }
+
+    float at(int tes_vol_index, int solar_size) {
+        return npcs.at(tes_vol_index + solar_size * tes_vols);
+    }
+};
+
+NpcSurface readSurfaceFile(std::string filename) {
+    std::ifstream infile(filename);
+    std::string line;
+
+    int solar_sizes = 0, tes_vols = 0;
+    std::vector<float> npcs;
+    
+    while (std::getline(infile, line))
+    {
+        //std::cout << "NEW LINE" << "\n";
+        std::stringstream ss(line);
+        std::string number;
+        //float x;
+        while (std::getline(ss, number, ',')) {
+            //std::cout << number << ", ";
+            npcs.push_back(std::stof(number));
+        }
+        if (solar_sizes == 0) tes_vols = static_cast<int>(npcs.size());
+        //std::cout << '\n';
+        ++solar_sizes;
+    }
+    infile.close();
+
+    std::cout << "num_solar_sizes: " << solar_sizes << ", num_tes_vols: " << tes_vols << '\n';
+
+    return { tes_vols, solar_sizes, npcs };
+}
+
+void surface_minima_finder() {
+    //NpcSurface npcs = readSurfaceFile("../matlab/c_surfaces/1.csv");
+    //std::cout << npcs.at(29, 16) << '\n';
+
+    //for (float solar_size = 0; solar_size < npcs.solar_sizes; 
+    //    solar_size += (npcs.solar_sizes / 5.0f)) {
+    //    std::cout << "solar_size: " << solar_size << '\n';
+    //}
+
+    std::vector<int> a = { 0, 57 };
+    while (!a.empty()) {
+        std::vector<int> b;
+        for (int i = 0; i < a.size() - 1; i++) {
+            const int a1 = a.at(i), a2 = a.at(i + 1);
+            const int delta = a2 - a1;
+            
+            if (delta > 1) {
+                if(b.empty() || b.back() != a1) b.push_back(a1);
+                b.push_back(a1 + delta / 2);
+                b.push_back(a2);
+            }
+        }
+
+        for (int bb : b) {
+            std::cout << bb << ',';
+        }
+        std::cout << '\n';
+        a = b;
+    }
+}
+
 // FUNCTIONS ACCESSIBLE FROM JAVASCRIPT
 extern "C" {
     const char* runSimulation(const char* postcode_char, float latitude, float longitude,
@@ -117,6 +191,7 @@ extern "C" {
 
 int main()
 {
-    readInputFile("input_list.csv");
+    surface_minima_finder();
+    //readInputFile("input_list.csv");
     //runSimulationWithDefaultParameters();
 }

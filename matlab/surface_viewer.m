@@ -13,7 +13,7 @@ for w = 0:2020
         ylabel("Solar Size Index");
         zlabel("NPC");
         i = i + 1;
-        saveas(gcf,sprintf("c_images/%i.png", i));
-        %pause(0.1);
+        %saveas(gcf,sprintf("c_images/%i.png", i));
+        pause;
     end
 end

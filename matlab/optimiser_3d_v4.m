@@ -7,7 +7,7 @@ t_efficiency = 0;
 cf = 0.1;
 tot_its = 0;
 
-for w = ran
+for w = 876
     w
     d = readmatrix(sprintf("c_surfaces/%i.csv", w));
     s = size(d);
