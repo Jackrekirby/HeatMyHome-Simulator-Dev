@@ -1,6 +1,6 @@
 clear all;
 i = 0;
-for w = 0:2020
+for w = 190
     disp(w);
     d = readmatrix(sprintf("c_surfaces/%i.csv", w));
     s = size(d);
