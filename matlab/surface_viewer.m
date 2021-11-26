@@ -1,6 +1,7 @@
 clear all;
 i = 0;
-for w = 190
+figure;
+for w = 589
     disp(w);
     d = readmatrix(sprintf("c_surfaces/%i.csv", w));
     s = size(d);

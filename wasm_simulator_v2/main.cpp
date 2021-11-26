@@ -322,6 +322,20 @@ std::vector<int> linearly_space(float range, int segments) {
     //std::cout << range << '\n';
 }
 
+std::vector<size_t> linearly_space2(float range, size_t segments) {
+    std::vector<size_t> points;
+    points.reserve(segments + 1);
+    const float step = range / segments;
+    int j = 0;
+    for (float i = 0; j < range; i += step) {
+        j = static_cast<int>(i);
+        if (static_cast<float>(i - j) > 0.5f) ++j;
+        points.push_back(j);
+        //std::cout << i << ", " << j << '\n';
+    }
+    return points;
+}
+
 struct Vec2t {
     size_t tes_index;
     size_t solar_index;
@@ -530,6 +544,286 @@ void surface_minima_finder3(int file_index, float gradient_factor, int& passed, 
     float saving = (static_cast<float>(points_searched) / static_cast<float>(npcs.size())) * 100.0f;
     efficiency += saving;
     std::cout << "i: " << file_index << ", final NPC: " << min_npc << ", true NPC: " << true_min_npc << ", Points Searched: " << points_searched << ", Saving: " << saving << '\n';
+}
+
+
+struct IndexRect {
+    size_t i1, j1, i2, j2;
+};
+
+float get_or_calculate(int i, int j, int x_size, float& min_z, std::vector<float>& zs, const std::vector<float>& test_zs) {
+    constexpr float unset_z = 3.40282e+038;
+    int k = i + j * x_size;
+    float& z = zs.at(k);
+    if (z == unset_z) {
+        z = test_zs.at(k);
+        if (z < min_z) min_z = z;
+    }
+    return z;
+}
+
+void if_unset_calculate(int i, int j, int x_size, float& min_z, std::vector<float>& zs, const std::vector<float>& test_zs) {
+    constexpr float unset_z = 3.40282e+038;
+    int k = i + j * x_size;
+    if (zs.at(k) == unset_z) {
+        float z = test_zs.at(k);
+        if (z < min_z) min_z = z;
+    }
+}
+
+float min_4f(float a, float b, float c, float d) {
+    float m = a;
+    if (b < m) m = b;
+    if (c < m) m = c;
+    if (d < m) m = d;
+    return m;
+}
+
+//struct TestZs {
+//    std::vector<float> zs;
+//    size_t x_size;
+//    size_t y_size;
+//
+//    TestZs(size_t x_size, size_t y_size, std::vector<float> zs)
+//        : x_size(x_size), y_size(y_size), zs(zs) {
+//
+//    }
+//
+//    float at(size_t i, size_t j) {
+//        return zs.at(i + j * x_size);
+//    }
+//};
+
+struct TestData {
+    size_t x_size, y_size;
+    std::vector<float> zs;
+    float min_z;
+    size_t min_i, min_j;
+};
+
+TestData readZFile(std::string filename) {
+    std::ifstream infile(filename);
+    std::string line;
+
+    size_t x_size = 0, y_size = 0;
+    std::vector<float> zs;
+
+    while (std::getline(infile, line))
+    {
+        std::stringstream ss(line);
+        std::string number;
+        while (std::getline(ss, number, ',')) {
+            //std::cout << number << ", ";
+            zs.push_back(std::stof(number));
+        }
+        if (y_size == 0) x_size = zs.size();
+        //std::cout << '\n';
+        ++y_size;
+    }
+    infile.close();
+
+    // std::cout << "x_size: " << x_size << ", y_size: " << y_size << '\n';
+
+    // calculate true minima
+    float min_z = 3.40282e+038;
+    size_t min_i = 0, min_j = 0;
+    for (size_t j = 0; j < y_size; ++j) {
+        for (size_t i = 0; i < x_size; ++i) {
+            const float z = zs.at(i + j * x_size);
+            if (z < min_z) {
+                min_z = z;
+                min_i = i;
+                min_j = j;
+            }
+        }
+    }
+
+    return { x_size, y_size, zs, min_z, min_i, min_j };
+}
+
+float surface_minima_finder5(float gradient_factor, const size_t target_step, const size_t min_step, const TestData& test_data, int& passed, float& efficiency, int n) {
+    // user defined variables
+    size_t x_size = test_data.x_size, y_size = test_data.y_size;
+
+    // non-user variables
+    constexpr float unset_z = 3.40282e+038; // if z has no been found yet it is set to max float value
+    float min_z = unset_z; // record the current minimum z
+    float max_mx = 0, max_my = 0; // gradient of steepest segment
+
+    // create blank surface of z's
+    std::vector<float> zs(x_size * y_size, unset_z);
+
+    // calculate initial points to search on surface
+    const size_t x_subdivisions = std::max(x_size / target_step, min_step);
+    const size_t y_subdivisions = std::max(y_size / target_step, min_step);
+    std::vector<size_t> is = linearly_space2(x_size - 1, x_subdivisions);
+    std::vector<size_t> js = linearly_space2(y_size - 1, y_subdivisions);
+
+    // combine 1D x and y indices into a 2D mesh 
+    std::vector<IndexRect> index_rects;
+    for (size_t j = 0; j < y_subdivisions; ++j) {
+        for (size_t i = 0; i < x_subdivisions; ++i) {
+            index_rects.emplace_back(IndexRect{ is.at(i), js.at(j), is.at(i + 1), js.at(j + 1) });
+        }
+    }
+
+    // calculate z for each position and set the min_z and steepest gradient for x & y
+    for (IndexRect& r : index_rects) {
+        const float z11 = get_or_calculate(r.i1, r.j1, x_size, min_z, zs, test_data.zs);
+        const float z21 = get_or_calculate(r.i2, r.j1, x_size, min_z, zs, test_data.zs);
+        const float z22 = get_or_calculate(r.i2, r.j2, x_size, min_z, zs, test_data.zs);
+        const float z12 = get_or_calculate(r.i1, r.j2, x_size, min_z, zs, test_data.zs);
+
+        const float mx = std::abs((z11 - z21) / (r.i2 - r.i1));
+        const float my = std::abs((z11 - z12) / (r.j2 - r.j1));
+
+        if (mx > max_mx) max_mx = mx;
+        if (my > max_my) max_my = my;
+    }
+
+    // multiply steepest gradient by user defined factor (how much variation in z is there between points?)
+    max_mx *= gradient_factor;
+    max_my *= gradient_factor;
+
+    while (!index_rects.empty()) {
+        std::vector<IndexRect> next_index_rects;
+        for (IndexRect& r : index_rects) {
+
+            // calculate distance between indices
+            const size_t di = r.i2 - r.i1;
+            const size_t dj = r.j2 - r.j1;
+
+            // assume length > 1 as it is checked when creating a new segment
+
+            // get npc at nodes of segment
+            const float z11 = get_or_calculate(r.i1, r.j1, x_size, min_z, zs, test_data.zs);
+            const float z21 = get_or_calculate(r.i2, r.j1, x_size, min_z, zs, test_data.zs);
+            const float z22 = get_or_calculate(r.i2, r.j2, x_size, min_z, zs, test_data.zs);
+            const float z12 = get_or_calculate(r.i1, r.j2, x_size, min_z, zs, test_data.zs);
+
+            // get node with lowest npc
+            float min_local_z = min_4f(z11, z21, z22, z12);
+            // estimate minimum npc between nodes
+            float min_z_estimate = min_local_z - (max_mx * di + max_my * dj);
+
+            // if segment could have npc lower than the current min subdivide
+            if (min_z_estimate < min_z) {
+                if (di == 1 && dj == 1) { // no more subdivision possible
+                    // should not be possible to reach
+                    std::cout << "UNREACHABLE!\n";
+                }
+                else if (di == 1) { // rect only divisible along j
+                    const size_t j12 = r.j1 + dj / 2;
+
+                    if_unset_calculate(r.i1, j12, x_size, min_z, zs, test_data.zs);
+                    if_unset_calculate(r.i2, j12, x_size, min_z, zs, test_data.zs);
+
+                    // if rect can be subdivided then subdivide
+                    if (j12 - r.j1 > 1) next_index_rects.emplace_back(IndexRect{ r.i1, r.j1,  r.i2, j12 });
+                    if (r.j2 - j12 > 1) next_index_rects.emplace_back(IndexRect{ r.i1, j12,  r.i2, r.j2 });
+                }
+                else if (dj == 1) { // rect only divisible along i
+                    const size_t i12 = r.i1 + di / 2;
+
+                    if_unset_calculate(i12, r.j1, x_size, min_z, zs, test_data.zs);
+                    if_unset_calculate(i12, r.j2, x_size, min_z, zs, test_data.zs);
+
+                    // if rect can be subdivided then subdivide
+                    if (i12 - r.i1 > 1) next_index_rects.emplace_back(IndexRect{ r.i1, r.j1,  i12, r.j2 });
+                    if (r.i2 - i12 > 1) next_index_rects.emplace_back(IndexRect{ i12, r.j1,  r.i2, r.j2 });
+                }
+                else {
+                    // midpoint can be found for both axes
+                    const size_t i12 = r.i1 + di / 2;
+                    const size_t j12 = r.j1 + dj / 2;
+
+                    if_unset_calculate(i12, r.j1, x_size, min_z, zs, test_data.zs);
+                    if_unset_calculate(i12, r.j2, x_size, min_z, zs, test_data.zs);
+                    if_unset_calculate(r.i1, j12, x_size, min_z, zs, test_data.zs);
+                    if_unset_calculate(r.i2, j12, x_size, min_z, zs, test_data.zs);
+                    if_unset_calculate(i12, j12, x_size, min_z, zs, test_data.zs);
+
+                    const bool sub_i1 = i12 - r.i1 == 1, sub_i2 = r.i2 - i12 == 1;
+                    const bool sub_j1 = j12 - r.j1 == 1, sub_j2 = r.j2 - j12 == 1;
+
+                    // one of the dimensions must have a length > 1 if the rect is to be subdivided further
+                    if (!(sub_i1 && sub_j1)) next_index_rects.emplace_back(IndexRect{ r.i1, r.j1,  i12, j12 });
+                    if (!(sub_i2 && sub_j1)) next_index_rects.emplace_back(IndexRect{ i12, r.j1,  r.i2, j12 });
+                    if (!(sub_i1 && sub_j2)) next_index_rects.emplace_back(IndexRect{ r.i1, j12,  i12, r.j2 });
+                    if (!(sub_i2 && sub_j2)) next_index_rects.emplace_back(IndexRect{ i12, j12,  r.i2, r.j2 });
+                }
+            }
+        }
+        index_rects = next_index_rects;
+    }
+
+    // DEBUG INFORMATION
+    int points_searched = 0;
+    for (size_t j = 0; j < y_size; ++j) {
+        for (size_t i = 0; i < x_size; ++i) {
+            const float z = zs.at(i + j * x_size);
+            if (z == unset_z) {
+                //std::cout << "-";
+            }
+            else {
+                //std::cout << "#";
+                points_searched++;
+            }
+        }
+        //std::cout << '\n';
+    }
+
+    const float saving = (static_cast<float>(points_searched) / static_cast<float>(zs.size())) * 100.0f;
+    efficiency += saving;
+    if (min_z == test_data.min_z) {
+        //std::cout << "PASS ";
+        //std::cout << "i: " << n << ", min z: " << min_z << ", true min z: " << test_data.min_z << ", points searched: " << points_searched << ", efficiency: " << saving << '\n';
+        passed++;
+    }
+    else {
+        //std::cout << "FAIL ";
+        std::cout << "i: " << n << ", min z: " << min_z << ", true min z: " << test_data.min_z << ", points searched: " << points_searched << ", efficiency: " << saving << ", gf: " << gradient_factor << ", step: " << target_step << '\n';
+    }
+    return min_z;
+}
+
+void surface_minima_finder5_setup() {
+    const size_t min_step = 3;
+    for (float gradient_factor = 0.01f; gradient_factor < 0.5; gradient_factor += 0.02f) {
+        for (int target_step = 8; target_step < 9; target_step++) {
+            int passed = 0;
+            float efficiency = 0;
+            float n = 0;
+
+            for (int i = 0; i < 2020; i++) {
+                std::stringstream ss;
+                ss << "../matlab/c_surfaces/" << i << ".csv";
+                TestData test_data = readZFile(ss.str());
+                if (test_data.y_size == 1) continue;
+                ++n;
+                surface_minima_finder5(gradient_factor, target_step, min_step, test_data, passed, efficiency, i);
+            }
+
+            //std::cout << "gf: " << gf << ", sd: " << subdivisions << ", passed " << static_cast<float>(passed) / static_cast<float>(surfaces) * 100.0f << "%, efficiency " << efficiency / surfaces << "%\n";
+            //std::cout << "passed: " << static_cast<float>(passed) / n * 100.0f << ", efficiency: " << efficiency / n << "\n";
+            std::cout << static_cast<float>(passed) / n * 100.0f << "," << efficiency / n << "\n";
+        }
+    }
+}
+
+void surface_minima_finder5_setup2() {
+    const size_t min_step = 3;
+    float gradient_factor = 0.35f;
+    int target_step = 8;
+    int i = 589;
+    int passed = 0;
+    float efficiency = 0;
+
+    std::stringstream ss;
+    ss << "../matlab/c_surfaces/" << i << ".csv";
+    TestData test_data = readZFile(ss.str());
+    if (test_data.y_size == 1) return;
+    surface_minima_finder5(gradient_factor, target_step, min_step, test_data, passed, efficiency, i);
 }
 
 void surface_minima_finder4(int file_index, float gradient_factor, int subdivisions, int& passed, float& efficiency, int& surfaces) {
@@ -832,8 +1126,7 @@ void surface_minima_finder4(int file_index, float gradient_factor, int subdivisi
     
 }
 
-int main()
-{
+void minima_steup() {
     for (float gf = 0.0f; gf < 0.5; gf += 0.02f) {
         for (int subdivisions = 3; subdivisions < 15; subdivisions++) {
             int passed = 0;
@@ -844,11 +1137,16 @@ int main()
             for (int i = 0; i < 2020; i++) {
                 surface_minima_finder4(i, gf, subdivisions, passed, efficiency, surfaces);
             }
-            
+
             //std::cout << "gf: " << gf << ", sd: " << subdivisions << ", passed " << static_cast<float>(passed) / static_cast<float>(surfaces) * 100.0f << "%, efficiency " << efficiency / surfaces << "%\n";
             std::cout << static_cast<float>(passed) / static_cast<float>(surfaces) * 100.0f << "," << efficiency / surfaces << "\n";
         }
     }
+}
+
+int main()
+{
+    surface_minima_finder5_setup();
 
     
     //readInputFile("input_list.csv");
