@@ -24,7 +24,7 @@ void runSimulationWithDefaultParameters()
     int num_occupants = 2;
     std::string postcode = "CV4 7AL";
     int epc_space_heating = 3000;
-    float house_size = 60.0;
+    float house_size = 360.0;
     float tes_volume_max = 3.0;
     float temp = 20.0;
     const float latitude = 52.3833f;
@@ -36,7 +36,7 @@ void runSimulationWithDefaultParameters()
 
     std::cout << "--- Simulation Begun ---\n";
     const char* output = runSimulation(postcode.c_str(), latitude, longitude, num_occupants, house_size, temp, epc_space_heating, tes_volume_max);
-    std::cout << "--- Simulation Output ---\n" << output << "\nSimulation Complete\n";
+    //std::cout << "--- Simulation Output ---\n" << output << "\nSimulation Complete\n";
 
 #ifndef EM_COMPATIBLE
     auto end_time = std::chrono::steady_clock::now();
@@ -1146,9 +1146,9 @@ void minima_steup() {
 
 int main()
 {
-    surface_minima_finder5_setup();
+    //surface_minima_finder5_setup();
 
     
     //readInputFile("input_list.csv");
-    //runSimulationWithDefaultParameters();
+    runSimulationWithDefaultParameters();
 }

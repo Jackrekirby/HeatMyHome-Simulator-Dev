@@ -659,7 +659,7 @@ void HeatNinja::SolarOptionLoop(HeatOptions hp_option, int solar_maximum, float 
 
 int file_index = 1449;
 
-std::array<HeatNinja::TesTariffSpecs, 21> HeatNinja::simulate_heat_solar_combinations(int solar_maximum, float tes_range, float ground_temp, std::ofstream& output_file) {
+std::array<HeatNinja::TesTariffSpecs, 21> HeatNinja::simulate_heat_solar_combinations(int solar_maximum, float tes_range, float ground_temp) {
     //std::array<std::thread, 21> threads;
     std::array<HeatNinja::TesTariffSpecs, 21> optimal_specifications;
 
@@ -669,12 +669,12 @@ std::array<HeatNinja::TesTariffSpecs, 21> HeatNinja::simulate_heat_solar_combina
             //threads.at(i) = std::thread([this, i, heat_option_int, solar_option_int, solar_maximum, tes_range, ground_temp, &optimal_specifications, &output_file] {
             //    this->simulate_heat_solar_combination(static_cast<HeatOptions>(heat_option_int), static_cast<SolarOptions>(solar_option_int), solar_maximum, tes_range, ground_temp, optimal_specifications.at(i), output_file);
             //    });
-            std::stringstream ss;
-            ss << "../matlab/c_surfaces/" << file_index << ".csv";
-            output_file.open(ss.str());
-            simulate_heat_solar_combination(static_cast<HeatOptions>(heat_option_int), static_cast<SolarOptions>(solar_option_int), solar_maximum, tes_range, ground_temp, optimal_specifications.at(i), output_file);
-            output_file.close();
-            ++file_index;
+            //std::stringstream ss;
+            //ss << "../matlab/c_surfaces/" << file_index << ".csv";
+            //output_file.open(ss.str());
+            simulate_heat_solar_combination(static_cast<HeatOptions>(heat_option_int), static_cast<SolarOptions>(solar_option_int), solar_maximum, tes_range, ground_temp, optimal_specifications.at(i));
+            //output_file.close();
+            //++file_index;
             ++i;
         }
     }
@@ -682,16 +682,214 @@ std::array<HeatNinja::TesTariffSpecs, 21> HeatNinja::simulate_heat_solar_combina
     return optimal_specifications;
 }
 
-void HeatNinja::simulate_heat_solar_combination(HeatOptions hp_option, SolarOptions solar_option, int solar_maximum, float tes_range, float ground_temp, TesTariffSpecs& optimal_spec, std::ofstream& output_file) {
+std::vector<size_t> HeatNinja::linearly_space(float range, size_t segments) {
+    std::vector<size_t> points;
+    points.reserve(segments + 1);
+    const float step = range / segments;
+    int j = 0;
+    for (float i = 0; j < range; i += step) {
+        j = static_cast<int>(i);
+        if (static_cast<float>(i - j) > 0.5f) ++j;
+        points.push_back(j);
+        //std::cout << i << ", " << j << '\n';
+    }
+    return points;
+}
+
+struct IndexRect {
+    size_t i1, j1, i2, j2;
+};
+
+float HeatNinja::min_4f(float a, float b, float c, float d) {
+    float m = a;
+    if (b < m) m = b;
+    if (c < m) m = c;
+    if (d < m) m = d;
+    return m;
+}
+
+float HeatNinja::get_or_calculate(int i, int j, int x_size, float& min_z, std::vector<float>& zs, 
+    HeatOptions hp_option, SolarOptions solar_option, float& optimum_tes_npc, int solar_maximum, float cop_worst, float hp_electrical_power, float ground_temp, TesTariffSpecs& optimal_spec, const std::array<float, 24>* temp_profile) {
+    constexpr float unset_z = 3.40282e+038f;
+    int k = i + j * x_size;
+    float& z = zs.at(k);
+    if (z == unset_z) {
+        z = calculate_optimal_tariff(hp_option, solar_option, j, optimum_tes_npc, solar_maximum, i, cop_worst, hp_electrical_power, ground_temp, optimal_spec, temp_profile);
+        if (z < min_z) min_z = z;
+    }
+    return z;
+}
+
+void HeatNinja::if_unset_calculate(int i, int j, int x_size, float& min_z, std::vector<float>& zs,
+    HeatOptions hp_option, SolarOptions solar_option, float& optimum_tes_npc, int solar_maximum, float cop_worst, float hp_electrical_power, float ground_temp, TesTariffSpecs& optimal_spec, const std::array<float, 24>* temp_profile) {
+    constexpr float unset_z = 3.40282e+038f;
+    int k = i + j * x_size;
+    // i = tes_option, j = solar_size
+    if (zs.at(k) == unset_z) {
+        // return what ever variable you want to optimise by (designed for npc)
+        float z = calculate_optimal_tariff(hp_option, solar_option, j, optimum_tes_npc, solar_maximum, i, cop_worst, hp_electrical_power, ground_temp, optimal_spec, temp_profile);
+        // may not need min_z
+        if (z < min_z) min_z = z;
+    }
+}
+
+void HeatNinja::simulate_heat_solar_combination(HeatOptions hp_option, SolarOptions solar_option, int solar_maximum, float tes_range, float ground_temp, TesTariffSpecs& optimal_spec) {
     const std::array<float, 24>& temp_profile = select_temp_profile(hp_option, this->hp_temp_profile, this->temp_profile);
     const float cop_worst = calculate_cop_worst(hp_option, hot_water_temp, coldest_outside_temp);
     float hp_electrical_power = calculate_hp_electrical_power(hp_option, boiler_demand.max_hourly, hp_demand.max_hourly, cop_worst);
     float optimum_tes_npc = 1000000;
     int solar_size_range = calculate_solar_size_range(solar_option, solar_maximum);
 
-    SolarSizeLoop(hp_option, solar_option, solar_size_range, optimum_tes_npc, solar_maximum, tes_range, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, output_file);
+    // OPTIMISER ==========================================================================================
+    const size_t min_step = 3;
+    float gradient_factor = 0.15f;
+    int target_step = 7;
+    // user defined variables
+    size_t x_size = static_cast<size_t>(tes_range), y_size = static_cast<size_t>(solar_size_range);
 
-    //std::cout << optimal_spec.cap_ex << '\n';
+    if (y_size > 1 && true) {
+        // non-user variables
+        constexpr float unset_z = 3.40282e+038f; // if z has no been found yet it is set to max float value
+        float min_z = unset_z; // record the current minimum z
+        float max_mx = 0, max_my = 0; // gradient of steepest segment
+
+        // create blank surface of z's
+        std::vector<float> zs(x_size * y_size, unset_z);
+
+        // calculate initial points to search on surface
+        const size_t x_subdivisions = std::max(x_size / target_step, min_step);
+        const size_t y_subdivisions = std::max(y_size / target_step, min_step);
+        std::vector<size_t> is = linearly_space(static_cast<float>(x_size - 1), x_subdivisions);
+        std::vector<size_t> js = linearly_space(static_cast<float>(y_size - 1), y_subdivisions);
+
+        // combine 1D x and y indices into a 2D mesh 
+        std::vector<IndexRect> index_rects;
+        for (size_t j = 0; j < y_subdivisions; ++j) {
+            for (size_t i = 0; i < x_subdivisions; ++i) {
+                index_rects.emplace_back(IndexRect{ is.at(i), js.at(j), is.at(i + 1), js.at(j + 1) });
+            }
+        }
+
+        // calculate z for each position and set the min_z and steepest gradient for x & y
+        for (IndexRect& r : index_rects) {
+            const float z11 = get_or_calculate(r.i1, r.j1, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+            const float z21 = get_or_calculate(r.i2, r.j1, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+            const float z22 = get_or_calculate(r.i2, r.j2, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+            const float z12 = get_or_calculate(r.i1, r.j2, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+
+            const float mx = std::abs((z11 - z21) / (r.i2 - r.i1));
+            const float my = std::abs((z11 - z12) / (r.j2 - r.j1));
+
+            if (mx > max_mx) max_mx = mx;
+            if (my > max_my) max_my = my;
+        }
+
+        // multiply steepest gradient by user defined factor (how much variation in z is there between points?)
+        max_mx *= gradient_factor;
+        max_my *= gradient_factor;
+
+        while (!index_rects.empty()) {
+            std::vector<IndexRect> next_index_rects;
+            for (IndexRect& r : index_rects) {
+
+                // calculate distance between indices
+                const size_t di = r.i2 - r.i1;
+                const size_t dj = r.j2 - r.j1;
+
+                // assume length > 1 as it is checked when creating a new segment
+
+                // get npc at nodes of segment
+                const float z11 = get_or_calculate(r.i1, r.j1, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+                const float z21 = get_or_calculate(r.i2, r.j1, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+                const float z22 = get_or_calculate(r.i2, r.j2, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+                const float z12 = get_or_calculate(r.i1, r.j2, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+
+                // get node with lowest npc
+                float min_local_z = min_4f(z11, z21, z22, z12);
+                // estimate minimum npc between nodes
+                float min_z_estimate = min_local_z - (max_mx * di + max_my * dj);
+
+                // if segment could have npc lower than the current min subdivide
+                if (min_z_estimate < min_z) {
+                    if (di == 1 && dj == 1) { // no more subdivision possible
+                        // should not be possible to reach
+                        std::cout << "UNREACHABLE!\n";
+                    }
+                    else if (di == 1) { // rect only divisible along j
+                        const size_t j12 = r.j1 + dj / 2;
+
+                        if_unset_calculate(r.i1, j12, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+                        if_unset_calculate(r.i2, j12, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+
+                        // if rect can be subdivided then subdivide
+                        if (j12 - r.j1 > 1) next_index_rects.emplace_back(IndexRect{ r.i1, r.j1,  r.i2, j12 });
+                        if (r.j2 - j12 > 1) next_index_rects.emplace_back(IndexRect{ r.i1, j12,  r.i2, r.j2 });
+                    }
+                    else if (dj == 1) { // rect only divisible along i
+                        const size_t i12 = r.i1 + di / 2;
+
+                        if_unset_calculate(i12, r.j1, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+                        if_unset_calculate(i12, r.j2, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+
+                        // if rect can be subdivided then subdivide
+                        if (i12 - r.i1 > 1) next_index_rects.emplace_back(IndexRect{ r.i1, r.j1,  i12, r.j2 });
+                        if (r.i2 - i12 > 1) next_index_rects.emplace_back(IndexRect{ i12, r.j1,  r.i2, r.j2 });
+                    }
+                    else {
+                        // midpoint can be found for both axes
+                        const size_t i12 = r.i1 + di / 2;
+                        const size_t j12 = r.j1 + dj / 2;
+
+                        if_unset_calculate(i12, r.j1, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+                        if_unset_calculate(i12, r.j2, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+                        if_unset_calculate(r.i1, j12, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+                        if_unset_calculate(r.i2, j12, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+                        if_unset_calculate(i12, j12, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+
+                        const bool sub_i1 = i12 - r.i1 == 1, sub_i2 = r.i2 - i12 == 1;
+                        const bool sub_j1 = j12 - r.j1 == 1, sub_j2 = r.j2 - j12 == 1;
+
+                        // one of the dimensions must have a length > 1 if the rect is to be subdivided further
+                        if (!(sub_i1 && sub_j1)) next_index_rects.emplace_back(IndexRect{ r.i1, r.j1,  i12, j12 });
+                        if (!(sub_i2 && sub_j1)) next_index_rects.emplace_back(IndexRect{ i12, r.j1,  r.i2, j12 });
+                        if (!(sub_i1 && sub_j2)) next_index_rects.emplace_back(IndexRect{ r.i1, j12,  i12, r.j2 });
+                        if (!(sub_i2 && sub_j2)) next_index_rects.emplace_back(IndexRect{ i12, j12,  r.i2, r.j2 });
+                    }
+                }
+            }
+            index_rects = next_index_rects;
+        }
+
+        if (false) {
+            // DEBUG INFORMATION
+            int points_searched = 0;
+            for (size_t j = 0; j < y_size; ++j) {
+                for (size_t i = 0; i < x_size; ++i) {
+                    const float z = zs.at(i + j * x_size);
+                    if (z == unset_z) {
+                        //std::cout << "-";
+                    }
+                    else {
+                        //std::cout << "#";
+                        points_searched++;
+                    }
+                }
+                //std::cout << '\n';
+            }
+
+            const float efficiency = (static_cast<float>(points_searched) / static_cast<float>(zs.size())) * 100.0f;
+            std::cout << "min z: " << min_z << ", points searched: " << points_searched << ", efficiency: " << efficiency << ", gf: " << gradient_factor << ", step: " << target_step << '\n';
+        }
+        return;
+    }
+
+    // brute force method ====================================================================================================
+
+    for (int solar_size = 0; solar_size < solar_size_range; ++solar_size) {
+        for (int tes_option = 0; tes_option < tes_range; ++tes_option) {
+            calculate_optimal_tariff(hp_option, solar_option, solar_size, optimum_tes_npc, solar_maximum, tes_option, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+        }
+    }
 }
 
 #ifndef EM_COMPATIBLE
@@ -863,28 +1061,35 @@ void HeatNinja::SolarSizeLoop(HeatOptions hp_option, SolarOptions solar_option, 
     }
 }
 
+int HeatNinja::calculate_solar_thermal_size(SolarOptions solar_option, int solar_size) {
+    switch (solar_option)
+    {
+    case SolarOptions::None:
+    case SolarOptions::PV:
+        return 0;
+    default:
+        return (solar_size * 2 + 2);
+    }
+}
+
+int HeatNinja::calculate_pv_size(SolarOptions solar_option, int solar_size, int solar_maximum, int solar_thermal_size) {
+    switch (solar_option)
+    {
+    case SolarOptions::PV:
+    case SolarOptions::PVT:
+        return solar_size * 2 + 2;
+    case SolarOptions::FP_PV:
+    case SolarOptions::ET_PV:
+        return solar_maximum - solar_thermal_size;
+    default:
+        return 0;
+    }
+}
+
 void HeatNinja::TesOptionLoop(HeatOptions hp_option, SolarOptions solar_option, int solar_size, int solar_maximum, float tes_range, float cop_worst, float hp_electrical_power, float& optimum_tes_npc, float ground_temp, TesTariffSpecs& current_tes_and_tariff_specs, const std::array<float, 24>* temp_profile, std::ofstream& output_file) {
-    // if (2 <= solar_option) solar_thermal_size = solar_size * 2 + 2 else 0
-    const int solar_thermal_size = [&]() -> const int {
-        switch (solar_option)
-        {
-        case SolarOptions::None:
-        case SolarOptions::PV:
-            return 0;
-        default:
-            return (solar_size * 2 + 2);
-        }
-    } ();
+    const int solar_thermal_size = calculate_solar_thermal_size(solar_option, solar_size);
 
-    //float solar_thermal_size = static_cast<float>((solar_size * 2 + 2) * static_cast<int>(SolarOptions::FP <= solar_option));
-
-    int pv_size = 0;
-    if (solar_option == SolarOptions::PV || solar_option == SolarOptions::PVT) {
-        pv_size = solar_size * 2 + 2;
-    }
-    else if (solar_option == SolarOptions::FP_PV || solar_option == SolarOptions::ET_PV) {
-        pv_size = solar_maximum - solar_thermal_size;
-    }
+    const int pv_size = calculate_pv_size(solar_option, solar_size, solar_maximum, solar_thermal_size);
 
     //std::cout << "solar_thermal_size: " << solar_thermal_size << ", pv_size: " << pv_size << '\n';
 
@@ -974,6 +1179,84 @@ float HeatNinja::calculate_capex_tes_volume(float tes_volume_current) {
     return 2068.3f * std::powf(tes_volume_current, 0.553f);
 }
 
+float HeatNinja::calculate_optimal_tariff(HeatOptions hp_option, SolarOptions solar_option, int solar_size, float& optimum_tes_npc, int solar_maximum, int tes_option, float cop_worst, float hp_electrical_power, float ground_temp, TesTariffSpecs& optimal_spec, const std::array<float, 24>* temp_profile) {
+    // find optimal for given solar_size and tes_vol
+    const int solar_thermal_size = calculate_solar_thermal_size(solar_option, solar_size);
+    const int pv_size = calculate_pv_size(solar_option, solar_size, solar_maximum, solar_thermal_size);
+    float tes_volume_current = 0.1f + tes_option * 0.1f; // m3
+    const float hp_electrical_power_worst = hp_electrical_power * cop_worst; // hp option
+    const float capex = calculate_capex_heatopt(hp_option, hp_electrical_power_worst) + calculate_capex_pv(solar_option, pv_size) + calculate_capex_solar_thermal(solar_option, solar_thermal_size) + calculate_capex_tes_volume(tes_volume_current);
+
+    const std::array<std::string, 3> heat_opt_names = { "ERH", "ASHP", "GSHP" };
+    const std::array<std::string, 7> solar_opt_names = { "None", "PV", "FP", "ET", "FP+PV", "ET+PV", "PVT" };
+    const std::array<std::string, 5> tariff_names = { "Flat Rate", "Economy 7", "Bulb Smart", "Octopus Go", "Octopus Agile" };
+
+    float optimum_tariff = 1000000;
+    float min_npc = 1000000;
+    for (int tariff_int = 0; tariff_int < 5; ++tariff_int) {
+        Tariff tariff = static_cast<Tariff>(tariff_int);
+        size_t hour_year_counter = 0;
+        //std::cout << "here\n";
+        float inside_temp_current = temp;  // Initial temp
+        float solar_thermal_generation_total = 0;
+        float operational_costs_peak = 0;
+        float operational_costs_off_peak = 0;
+        float operation_emissions = 0;
+
+        const float tes_radius = std::pow((tes_volume_current / (2 * PI)), (1.0f / 3.0f));  //For cylinder with height = 2x radius
+        const float tes_charge_full = tes_volume_current * 1000 * 4.18f * (hot_water_temp - 40) / 3600; // 40 min temp
+        const float tes_charge_boost = tes_volume_current * 1000 * 4.18f * (60 - 40) / 3600; //  # kWh, 60C HP with PV boost
+        const float tes_charge_max = tes_volume_current * 1000 * 4.18f * (95 - 40) / 3600; //  # kWh, 95C electric and solar
+
+        const float tes_charge_min = 10 * 4.18f * (hot_water_temp - 10) / 3600; // 10litres hot min amount
+        //CWT coming in from DHW re - fill, accounted for by DHW energy out, DHW min useful temperature 40°C
+        //Space heating return temperature would also be ~40°C with flow at 51°C
+        float tes_state_of_charge = tes_charge_full;  // kWh, for H2O, starts full to prevent initial demand spike
+        // https ://www.sciencedirect.com/science/article/pii/S0306261916302045
+
+        constexpr std::array<int, 12> days_in_months = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
+        int month = 0;
+        for (int days_in_month : days_in_months) {
+            float ratio_sg_south = ratios_sg_south.at(month);
+            float ratio_sg_north = ratios_sg_north.at(month);
+            float cwt_current = cold_water_temp.at(month);
+            float dhw_mf_current = dhw_monthly_factor.at(month);
+
+            const float solar_declination_current = solar_declination.at(month);
+            float ratio_roof_south = ratios_roof_south.at(month);
+
+            for (size_t day = 0; day < days_in_month; ++day) {
+                calcHeaterDay(temp_profile, inside_temp_current, ratio_sg_south, ratio_sg_north, cwt_current, dhw_mf_current, tes_state_of_charge, tes_charge_full, tes_charge_boost, tes_charge_max, tes_radius, ground_temp, hp_option, solar_option, pv_size, solar_thermal_size, hp_electrical_power, tariff, operational_costs_peak, operational_costs_off_peak, operation_emissions, solar_thermal_generation_total, ratio_roof_south, tes_charge_min, hour_year_counter);
+            }
+            ++month;
+        }
+
+        float total_operational_cost = operational_costs_peak + operational_costs_off_peak; // tariff
+
+        //std::cout << hp_electrical_power_worst << ", " << pv_size << ", " << solar_thermal_size << ", " << tes_volume_current << ", " << operational_costs_peak << ", " << operational_costs_off_peak << '\n';
+
+        const float npc = capex + total_operational_cost * cumulative_discount_rate;
+        if (npc < min_npc) min_npc = npc;
+        //output_file << static_cast<int>(hp_option) << ", " << static_cast<int>(solar_option) << ", " << solar_size << ", " << tes_volume_current << ", " << static_cast<int>(tariff) << ", " << tools::to_string_with_precision(npc, 4) << "\n";
+
+        // JUST RETURN THE SPEC EVEN IF ITS NOT OPTIMAL AS SURFACE NEEDS NPC DATA???
+
+        if (total_operational_cost < optimum_tariff) {
+            optimum_tariff = total_operational_cost;
+
+            const float net_present_cost_current = capex + total_operational_cost * cumulative_discount_rate; // £s
+
+            if (net_present_cost_current < optimum_tes_npc) {
+                // Lowest cost TES & tariff for heating tech. For OpEx vs CapEx plots, with optimised TES and tariff
+                optimum_tes_npc = net_present_cost_current;
+                optimal_spec = { total_operational_cost, capex, hp_option, solar_option, pv_size, solar_thermal_size, tes_volume_current, net_present_cost_current, operation_emissions, tariff };
+            }
+        }
+    }
+    return min_npc;
+}
+
 void HeatNinja::TariffLoop(HeatOptions hp_option, SolarOptions solar_option, float tes_volume_current, float& optimum_tariff, int solar_thermal_size, int pv_size, float cop_worst, const float hp_electrical_power, float& optimum_tes_npc, TesTariffSpecs& current_tes_and_tariff_specs, float ground_temp, Tariff tariff, const std::array<float, 24>* temp_profile, int solar_size, float capex, std::ofstream& output_file, float& min_npc_of_tariffs) {
     size_t hour_year_counter = 0;
     //std::cout << "here\n";
@@ -1007,7 +1290,7 @@ void HeatNinja::TariffLoop(HeatOptions hp_option, SolarOptions solar_option, flo
         float ratio_roof_south = ratios_roof_south.at(month);
 
         for (size_t day = 0; day < days_in_month; ++day) {
-            calcHeaterDay(temp_profile, inside_temp_current, ratio_sg_south, ratio_sg_north, cwt_current, dhw_mf_current, tes_state_of_charge, tes_charge_full, tes_charge_boost, tes_charge_max, tes_radius, ground_temp, hp_option, solar_option, pv_size, solar_thermal_size, hp_electrical_power, tariff, tes_volume_current, operational_costs_peak, operational_costs_off_peak, operation_emissions, solar_thermal_generation_total, ratio_roof_south, tes_charge_min, hour_year_counter);
+            calcHeaterDay(temp_profile, inside_temp_current, ratio_sg_south, ratio_sg_north, cwt_current, dhw_mf_current, tes_state_of_charge, tes_charge_full, tes_charge_boost, tes_charge_max, tes_radius, ground_temp, hp_option, solar_option, pv_size, solar_thermal_size, hp_electrical_power, tariff, operational_costs_peak, operational_costs_off_peak, operation_emissions, solar_thermal_generation_total, ratio_roof_south, tes_charge_min, hour_year_counter);
         }
         ++month;
     }
@@ -1381,7 +1664,7 @@ float HeatNinja::calculate_emissions_grid_import(float electrical_import, float 
     return electrical_import * grid_emissions;
 }
 
-void HeatNinja::calcHeaterDay(const std::array<float, 24>* temp_profile, float& inside_temp_current, float ratio_sg_south, float ratio_sg_north, float cwt_current, float dhw_mf_current, float& tes_state_of_charge, float tes_charge_full, float tes_charge_boost, float tes_charge_max, float tes_radius, float ground_temp, HeatOptions hp_option, SolarOptions solar_option, int pv_size, int solar_thermal_size, const float hp_electrical_power, Tariff tariff, float& tes_volume_current, float& operational_costs_peak, float& operational_costs_off_peak, float& operation_emissions, float& solar_thermal_generation_total, float ratio_roof_south, float tes_charge_min, size_t& hour_year_counter) {
+void HeatNinja::calcHeaterDay(const std::array<float, 24>* temp_profile, float& inside_temp_current, float ratio_sg_south, float ratio_sg_north, float cwt_current, float dhw_mf_current, float& tes_state_of_charge, float tes_charge_full, float tes_charge_boost, float tes_charge_max, float tes_radius, float ground_temp, HeatOptions hp_option, SolarOptions solar_option, int pv_size, int solar_thermal_size, const float hp_electrical_power, Tariff tariff, float& operational_costs_peak, float& operational_costs_off_peak, float& operation_emissions, float& solar_thermal_generation_total, float ratio_roof_south, float tes_charge_min, size_t& hour_year_counter) {
     const float pi_d = PI * tes_radius * 2;
     const float pi_r2 = PI * tes_radius * tes_radius;
     const float pi_d2 = pi_d * tes_radius * 2;
@@ -1453,17 +1736,17 @@ std::string HeatNinja::initHeaterTesSettings() {
     
 
     float ground_temp = 15 - (latitude - 50) * (4.0f / 9.0f); // Linear regression ground temp across UK at 100m depth
-    float tes_range = tes_volume_max / 0.1f;
+    float tes_range = tes_volume_max / 0.1f; // SHOULD BE AN INT E.G. 3.0 / 0.1 = 30
 
     int solar_maximum = static_cast<int>(house_size / 8) * 2;  // Quarter of the roof for solar, even number
 
     house_size_thermal_transmittance_product = house_size * thermal_transmittance / 1000;
 
-    std::ofstream output_file;
+    //std::ofstream output_file;
     //output_file.open("../matlab/output.txt");
     //std::array<TesTariffSpecs, 21> optimum_tes_and_tariff_spec;
     //HpOptionLoop(solar_maximum, tes_range, ground_temp, optimum_tes_and_tariff_spec, output_file);
-    std::array<HeatNinja::TesTariffSpecs, 21> optimum_tes_and_tariff_spec = simulate_heat_solar_combinations(solar_maximum, tes_range, ground_temp, output_file);
+    std::array<HeatNinja::TesTariffSpecs, 21> optimum_tes_and_tariff_spec = simulate_heat_solar_combinations(solar_maximum, tes_range, ground_temp);
 
 #ifdef EM_COMPATIBLE
     //SINGLE THREAD
@@ -1482,9 +1765,9 @@ std::string HeatNinja::initHeaterTesSettings() {
     std::cout << "\n--- Optimum TES and Net Present Cost per Heating & Solar Option ---";
     std::cout << "\nHP Opt, Solar Opt, PV Size, Solar Size, TES Vol, OPEX, CAPEX, NPC, Emissions, Tariff\n";
 
-    std::array<std::string, 3> heat_opt_names = { "ERH", "ASHP", "GSHP" };
-    std::array<std::string, 7> solar_opt_names = { "None", "PV", "FP", "ET", "FP+PV", "ET+PV", "PVT" };
-    std::array<std::string, 5> tariff_names = { "Flat Rate", "Economy 7", "Bulb Smart", "Octopus Go", "Octopus Agile" };
+    const std::array<std::string, 3> heat_opt_names = { "ERH", "ASHP", "GSHP" };
+    const std::array<std::string, 7> solar_opt_names = { "None", "PV", "FP", "ET", "FP+PV", "ET+PV", "PVT" };
+    const std::array<std::string, 5> tariff_names = { "Flat Rate", "Economy 7", "Bulb Smart", "Octopus Go", "Octopus Agile" };
 
     for (const auto& s : optimum_tes_and_tariff_spec) {
         //fmt::print("[ {}, {}, {}, {}, {}, {}, {}, {}, {} ]\n", s.total_operational_cost, s.cap_ex, s.hp_option, s.solar_option, s.pv_size, s.solar_thermal_size, s.tes_volume, s.net_present_cost, s.operation_emissions);

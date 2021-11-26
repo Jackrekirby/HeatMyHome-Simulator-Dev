@@ -253,9 +253,26 @@ public:
 
     void SolarOptionLoop(HeatOptions hp_option, int solar_maximum, float tes_range, float ground_temp, std::array<TesTariffSpecs, 21>& optimum_tes_and_tariff_spec, std::ofstream& output_file);
 
-    std::array<TesTariffSpecs, 21> simulate_heat_solar_combinations(int solar_maximum, float tes_range, float ground_temp, std::ofstream& output_file);
 
-    void simulate_heat_solar_combination(HeatOptions hp_option, SolarOptions solar_option, int solar_maximum, float tes_range, float ground_temp, TesTariffSpecs& optimal_spec, std::ofstream& output_file);
+    float min_4f(float a, float b, float c, float d);
+    std::vector<size_t> linearly_space(float range, size_t segments);
+
+    float get_or_calculate(int i, int j, int x_size, float& min_z, std::vector<float>& zs,
+        HeatOptions hp_option, SolarOptions solar_option, float& optimum_tes_npc, int solar_maximum, float cop_worst, float hp_electrical_power, float ground_temp, TesTariffSpecs& optimal_spec, const std::array<float, 24>* temp_profile);
+
+    void if_unset_calculate(int i, int j, int x_size, float& min_z, std::vector<float>& zs,
+        HeatOptions hp_option, SolarOptions solar_option, float& optimum_tes_npc, int solar_maximum, float cop_worst, float hp_electrical_power, float ground_temp, TesTariffSpecs& optimal_spec, const std::array<float, 24>* temp_profile);
+
+
+    std::array<TesTariffSpecs, 21> simulate_heat_solar_combinations(int solar_maximum, float tes_range, float ground_temp);
+
+    void simulate_heat_solar_combination(HeatOptions hp_option, SolarOptions solar_option, int solar_maximum, float tes_range, float ground_temp, TesTariffSpecs& optimal_spec);
+
+    int calculate_solar_thermal_size(SolarOptions solar_option, int solar_size);
+
+    int calculate_pv_size(SolarOptions solar_option, int solar_size, int solar_maximum, int solar_thermal_size);
+
+    float calculate_optimal_tariff(HeatOptions hp_option, SolarOptions solar_option, int solar_size, float& optimum_tes_npc, int solar_maximum, int tes_option, float cop_worst, float hp_electrical_power, float ground_temp, TesTariffSpecs& optimal_spec, const std::array<float, 24>* temp_profile);
 
 #ifndef EM_COMPATIBLE
     void HpOptionLoop_Thread(int solar_maximum, float tes_range, float ground_temp, std::array<TesTariffSpecs, 21>& optimum_tes_and_tariff_spec, std::ofstream& output_file);
@@ -306,7 +323,7 @@ public:
     float calculate_emissions_pv_generation(float pv_generation_current, float pv_equivalent_revenue, float grid_emissions, int pv_size);
     float calculate_emissions_grid_import(float electrical_import, float grid_emissions);
 
-    void calcHeaterDay(const std::array<float, 24>* temp_profile, float& inside_temp_current, float ratio_sg_south, float ratio_sg_north, float cwt_current, float dhw_mf_current, float& tes_state_of_charge, float tes_charge_full, float tes_charge_boost, float tes_charge_max, float tes_radius, float ground_temp, HeatOptions hp_option, SolarOptions solar_option, int pv_size, int solar_thermal_size, float hp_electrical_power, Tariff tariff, float& tes_volume_current, float& operational_costs_peak, float& operational_costs_off_peak, float& operation_emissions, float& solar_thermal_generation_total, float ratio_roof_south, float tes_charge_min, size_t& hour_year_counter);
+    void calcHeaterDay(const std::array<float, 24>* temp_profile, float& inside_temp_current, float ratio_sg_south, float ratio_sg_north, float cwt_current, float dhw_mf_current, float& tes_state_of_charge, float tes_charge_full, float tes_charge_boost, float tes_charge_max, float tes_radius, float ground_temp, HeatOptions hp_option, SolarOptions solar_option, int pv_size, int solar_thermal_size, float hp_electrical_power, Tariff tariff, float& operational_costs_peak, float& operational_costs_off_peak, float& operation_emissions, float& solar_thermal_generation_total, float ratio_roof_south, float tes_charge_min, size_t& hour_year_counter);
 
     std::string initHeaterTesSettings();
 };
