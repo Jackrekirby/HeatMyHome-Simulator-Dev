@@ -1,4 +1,5 @@
 //#define EM_COMPATIBLE
+#include "heatninja2.h"
 
 #include "heatninja.h"
 #include <iostream>
@@ -1049,27 +1050,41 @@ extern "C" {
 
 // FUNCTION DEFINITIONS
 
+class Timer {
+    std::chrono::steady_clock::time_point start_time;
+public:
+    Timer()
+        :start_time(std::chrono::steady_clock::now())
+    {
+
+    }
+
+    void stop() {
+        auto end_time = std::chrono::steady_clock::now();
+        auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+        std::cout << "Runtime: " << elapsed_time / 1000.0 << " s\n";
+    }
+};
+
 void runSimulationWithDefaultParameters()
 {
     int num_occupants = 2;
     std::string postcode = "CV4 7AL";
     int epc_space_heating = 3000;
-    float house_size = 360.0;
+    float house_size = 60.0;
     float tes_volume_max = 3.0;
     float temp = 20.0;
     const float latitude = 52.3833f;
     const float longitude = -1.5833f;
 
 #ifndef EM_COMPATIBLE
-    auto start_time = std::chrono::steady_clock::now();
+    Timer t;
 #endif
     std::cout << "--- Simulation Begun ---\n";
     const char* output = run_simulation(postcode.c_str(), latitude, longitude, num_occupants, house_size, temp, epc_space_heating, tes_volume_max);
     //std::cout << "--- Simulation Output ---\n" << output << "\nSimulation Complete\n";
 #ifndef EM_COMPATIBLE
-    auto end_time = std::chrono::steady_clock::now();
-    auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-    std::cout << "Runtime: " << elapsed_time / 1000.0 << " s\n";
+    t.stop();
 #endif
 }
 
@@ -1137,10 +1152,32 @@ extern "C" {
     }
 }
 
+void test_heat_ninja2() {
+    int num_occupants = 2;
+    std::string postcode = "CV4 7AL";
+    int epc_space_heating = 3000;
+    float house_size = 60.0;
+    float tes_volume_max = 3.0;
+    float thermostat_temperature = 20.0;
+    const float latitude = 52.3833f;
+    const float longitude = -1.5833f;
+
+    heatninja2::run_simulation(thermostat_temperature, latitude, longitude, num_occupants, house_size, postcode, epc_space_heating);
+}
+
 int main()
 {
+    if (true) {
+        Timer t;
+        test_heat_ninja2();
+        t.stop();
+    }
+    else {
+        runSimulationWithDefaultParameters();
+    }
+
     //surface_minima_finder5_setup();
 
     //readInputFile("input_list.csv");
-    runSimulationWithDefaultParameters();
+    //
 }
