@@ -17,8 +17,8 @@ cwd = os.getcwd() + '\\'
 print(f' - 3 - Current Working Directory: {cwd}')
 
 # emscripten inputs
-cpp_dir = cwd + 'wasm_simulator\\'
-cpp_files = ['animal.cpp', 'main.cpp']
+cpp_dir = cwd + 'wasm_simulator_v2\\'
+cpp_files = ['heatninja.cpp', 'main.cpp']
 cpp_preload_file = 'assets'
 virtual_preload_file = 'assets'
 compiler_options = {'optimisation': '-O3', 'version': '-std=c++20',
@@ -45,9 +45,7 @@ emsdk_env_bat = 'emsdk_env.bat'
 web_dir = cwd + ''
 web_file = 'cpp.js'
 
-exported_functions = ['return_vector', 'print_outside_temps',
-                      'print_example_file', 'call_class', 'int_sqrt',
-                      'speed_test', 'sim_test', 'sim_test_args']
+exported_functions = ['run_simulation']
 exported_runtime_methods = ['ccall', 'cwrap']
 
 batch_file = 'archive\\call_empp.bat'
@@ -55,7 +53,7 @@ batch_file = 'archive\\call_empp.bat'
 # javascript file merge inputs
 js_merge_file = 'index.js'
 js_files = ['extra.js', web_file]
-just_js = False
+just_js = True
 
 # ____ AUTOMATED ________________________________________________________
 

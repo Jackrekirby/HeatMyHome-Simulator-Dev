@@ -255,12 +255,13 @@ public:
 
 
     float min_4f(float a, float b, float c, float d);
+
     std::vector<size_t> linearly_space(float range, size_t segments);
 
-    float get_or_calculate(int i, int j, int x_size, float& min_z, std::vector<float>& zs,
+    float get_or_calculate(size_t i, size_t j, size_t x_size, float& min_z, std::vector<float>& zs,
         HeatOptions hp_option, SolarOptions solar_option, float& optimum_tes_npc, int solar_maximum, float cop_worst, float hp_electrical_power, float ground_temp, TesTariffSpecs& optimal_spec, const std::array<float, 24>* temp_profile);
 
-    void if_unset_calculate(int i, int j, int x_size, float& min_z, std::vector<float>& zs,
+    void if_unset_calculate(size_t i, size_t j, size_t x_size, float& min_z, std::vector<float>& zs,
         HeatOptions hp_option, SolarOptions solar_option, float& optimum_tes_npc, int solar_maximum, float cop_worst, float hp_electrical_power, float ground_temp, TesTariffSpecs& optimal_spec, const std::array<float, 24>* temp_profile);
 
 

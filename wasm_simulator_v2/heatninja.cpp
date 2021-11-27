@@ -1,4 +1,5 @@
 #include "heatninja.h"
+//#define EM_COMPATIBLE
 
 #include <iostream>
 #include <sstream>
@@ -85,6 +86,11 @@ HeatNinja::HeatNinja(int num_occupants, const std::string& location, int epc_spa
     ratios_roof_south(initRatiosRoofSouth()),
     cumulative_discount_rate(calculateCumulativeDiscountRate(discount_rate, npc_years))
 {
+    #ifdef EM_COMPATIBLE
+    std::cout << "EM_COMPATIBLE\n";
+    #endif
+    
+
     std::cout << "\n--- Energy Performance Certicate Demand ---" << '\n';
     calcEpcYear();
     std::cout << "\n--- Heat Pump Yearly Demand ---" << '\n';
@@ -656,29 +662,21 @@ void HeatNinja::SolarOptionLoop(HeatOptions hp_option, int solar_maximum, float 
     }
 }
 
-
 int file_index = 1449;
-
 std::array<HeatNinja::TesTariffSpecs, 21> HeatNinja::simulate_heat_solar_combinations(int solar_maximum, float tes_range, float ground_temp) {
     //std::array<std::thread, 21> threads;
+
     std::array<HeatNinja::TesTariffSpecs, 21> optimal_specifications;
-
-    int i = 0;
-    for (int heat_option_int = 0; heat_option_int < 3; ++heat_option_int) {
-        for (int solar_option_int = 0; solar_option_int < 7; ++solar_option_int) {
-            //threads.at(i) = std::thread([this, i, heat_option_int, solar_option_int, solar_maximum, tes_range, ground_temp, &optimal_specifications, &output_file] {
-            //    this->simulate_heat_solar_combination(static_cast<HeatOptions>(heat_option_int), static_cast<SolarOptions>(solar_option_int), solar_maximum, tes_range, ground_temp, optimal_specifications.at(i), output_file);
-            //    });
-            //std::stringstream ss;
-            //ss << "../matlab/c_surfaces/" << file_index << ".csv";
-            //output_file.open(ss.str());
-            simulate_heat_solar_combination(static_cast<HeatOptions>(heat_option_int), static_cast<SolarOptions>(solar_option_int), solar_maximum, tes_range, ground_temp, optimal_specifications.at(i));
-            //output_file.close();
-            //++file_index;
-            ++i;
-        }
+#ifndef EM_COMPATIBLE
+    std::array<int, 21> is = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 };
+    std::for_each(std::execution::par_unseq, is.begin(), is.end(), [&](int i) {
+        simulate_heat_solar_combination(static_cast<HeatOptions>(i / 7), static_cast<SolarOptions>(i % 7), solar_maximum, tes_range, ground_temp, optimal_specifications.at(i));
+        });
+#else
+    for (int i = 0; i < 21; ++i) {
+        simulate_heat_solar_combination(static_cast<HeatOptions>(i / 7), static_cast<SolarOptions>(i % 7), solar_maximum, tes_range, ground_temp, optimal_specifications.at(i));
     }
-
+#endif
     return optimal_specifications;
 }
 
@@ -708,26 +706,24 @@ float HeatNinja::min_4f(float a, float b, float c, float d) {
     return m;
 }
 
-float HeatNinja::get_or_calculate(int i, int j, int x_size, float& min_z, std::vector<float>& zs, 
+float HeatNinja::get_or_calculate(size_t i, size_t j, size_t x_size, float& min_z, std::vector<float>& zs,
     HeatOptions hp_option, SolarOptions solar_option, float& optimum_tes_npc, int solar_maximum, float cop_worst, float hp_electrical_power, float ground_temp, TesTariffSpecs& optimal_spec, const std::array<float, 24>* temp_profile) {
     constexpr float unset_z = 3.40282e+038f;
-    int k = i + j * x_size;
-    float& z = zs.at(k);
+    float& z = zs.at(i + j * x_size);
     if (z == unset_z) {
-        z = calculate_optimal_tariff(hp_option, solar_option, j, optimum_tes_npc, solar_maximum, i, cop_worst, hp_electrical_power, ground_temp, optimal_spec, temp_profile);
+        z = calculate_optimal_tariff(hp_option, solar_option, static_cast<int>(j), optimum_tes_npc, solar_maximum, static_cast<int>(i), cop_worst, hp_electrical_power, ground_temp, optimal_spec, temp_profile);
         if (z < min_z) min_z = z;
     }
     return z;
 }
 
-void HeatNinja::if_unset_calculate(int i, int j, int x_size, float& min_z, std::vector<float>& zs,
+void HeatNinja::if_unset_calculate(size_t i, size_t j, size_t x_size, float& min_z, std::vector<float>& zs,
     HeatOptions hp_option, SolarOptions solar_option, float& optimum_tes_npc, int solar_maximum, float cop_worst, float hp_electrical_power, float ground_temp, TesTariffSpecs& optimal_spec, const std::array<float, 24>* temp_profile) {
     constexpr float unset_z = 3.40282e+038f;
-    int k = i + j * x_size;
     // i = tes_option, j = solar_size
-    if (zs.at(k) == unset_z) {
+    if (zs.at(i + j * x_size) == unset_z) {
         // return what ever variable you want to optimise by (designed for npc)
-        float z = calculate_optimal_tariff(hp_option, solar_option, j, optimum_tes_npc, solar_maximum, i, cop_worst, hp_electrical_power, ground_temp, optimal_spec, temp_profile);
+        float z = calculate_optimal_tariff(hp_option, solar_option, static_cast<int>(j), optimum_tes_npc, solar_maximum, static_cast<int>(i), cop_worst, hp_electrical_power, ground_temp, optimal_spec, temp_profile);
         // may not need min_z
         if (z < min_z) min_z = z;
     }

@@ -1,13 +1,13 @@
 clear all;
 clc;
 
-d = readmatrix("optimiser_surface.csv");
+d = readmatrix("optimiser_surface2.csv");
 
 sds = 4:14;
 gf = 0.01:0.02:0.49;
 
-sds = 3:14;
-gf = 0:0.02:0.48;
+% sds = 3:14;
+% gf = 0:0.02:0.48;
 
 passed = reshape(d(:, 1), length(sds), []);
 efficiency = reshape(d(:, 2), length(sds), []);
