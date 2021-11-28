@@ -58,6 +58,7 @@ namespace heatninja2 {
         std::cout << "house_size: " << float_to_string(house_size, float_print_precision) << '\n';
         std::cout << "postcode: " << postcode << '\n';
         std::cout << "epc_space_heating: " << epc_space_heating << '\n';
+        std::cout << "tes_volume_max: " << tes_volume_max << '\n';
         std::cout << "\n";
 
 
@@ -79,13 +80,13 @@ namespace heatninja2 {
         const std::vector<float> hourly_outside_temperatures_over_year = import_weather_data("outside_temps", latitude, longitude);
         const std::vector<float> hourly_solar_irradiances_over_year = import_weather_data("solar_irradiances", latitude, longitude);
 
-        float average_daily_hot_water_volume = calculate_average_daily_hot_water_volume(num_occupants);
+        const float average_daily_hot_water_volume = calculate_average_daily_hot_water_volume(num_occupants);
 
         constexpr int hot_water_temperature = 51;
 
         const float solar_gain_house_factor = calculate_solar_gain_house_factor(house_size);
 
-        float epc_body_gain = calculate_epc_body_gain(house_size);
+        const float epc_body_gain = calculate_epc_body_gain(house_size);
 
         const int region_identifier = calculate_region_identifier(postcode);
         const std::array<float, 12> monthly_epc_outside_temperatures = calculate_monthly_epc_outside_temperatures(region_identifier);
@@ -122,22 +123,26 @@ namespace heatninja2 {
         const float ground_temp = calculate_ground_temperature(latitude);
         const int tes_range = calculate_tes_range(tes_volume_max);
         const int solar_maximum = calculate_solar_maximum(house_size);
-        float house_size_thermal_transmittance_product = calculate_house_size_thermal_transmittance_product(house_size, dwelling_thermal_transmittance);
-        float cumulative_discount_rate = calculate_cumulative_discount_rate(discount_rate, npc_years);
+        const float house_size_thermal_transmittance_product = calculate_house_size_thermal_transmittance_product(house_size, dwelling_thermal_transmittance);
+        const float cumulative_discount_rate = calculate_cumulative_discount_rate(discount_rate, npc_years);
         const std::array<float, 12> monthly_roof_ratios_south = calculate_roof_ratios_south(monthly_solar_declinations, latitude);
         constexpr float u_value = 1.30f / 1000; // 0.00130 kW / m2K linearised from https ://zenodo.org/record/4692649#.YQEbio5KjIV &
+        const std::vector<float> agile_tariff_per_hour_over_year = import_per_hour_of_year_data("assets/agile_tariff.csv");
+        constexpr int grid_emissions = 212;
 
         std::array<HeatSolarSystemSpecifications, 21> optimal_specifications;
         #ifndef EM_COMPATIBLE
-        std::array<int, 21> is = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 };
-        std::for_each(std::execution::par_unseq, is.begin(), is.end(), [&](int i) {
-            simulate_heat_solar_combination(static_cast<HeatOption>(i / 7), static_cast<SolarOption>(i % 7), solar_maximum, tes_range, ground_temp, optimal_specifications.at(i));
+        constexpr std::array<int, 21> heat_solar_indices = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 };
+        std::for_each(std::execution::par_unseq, heat_solar_indices.begin(), heat_solar_indices.end(), [&](int i) {
+            simulate_heat_solar_combination(static_cast<HeatOption>(i / 7), static_cast<SolarOption>(i % 7), solar_maximum, tes_range, ground_temp, optimal_specifications.at(i), erh_hourly_temperatures_over_day, hp_hourly_temperatures_over_day, hot_water_temperature, coldest_outside_temperature_of_year, maximum_hourly_erh_demand, maximum_hourly_hp_demand, thermostat_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
             });
         #else
         for (int i = 0; i < 21; ++i) {
             simulate_heat_solar_combination(static_cast<HeatOption>(i / 7), static_cast<SolarOption>(i % 7), solar_maximum, tes_range, ground_temp, optimal_specifications.at(i));
         }
         #endif
+
+        print_optimal_specifications(optimal_specifications, float_print_precision);
     }
 
     float round_coordinate(const float coordinate) {
@@ -210,7 +215,6 @@ namespace heatninja2 {
         }
         return solar_height_factors;
     }
-
 
     std::array<float, 12> calculate_monthly_incident_irradiance_solar_gains_south(const std::array<float, 12>& monthly_solar_gain_ratios_south, const std::array<int, 12>& monthly_epc_solar_irradiances) {
         std::array<float, 12> monthly_incident_irradiances_solar_gains_south;
@@ -302,6 +306,13 @@ namespace heatninja2 {
     float calculate_body_heat_gain(const int num_occupants) {
         return (num_occupants * 60) / 1000.0f;
     }
+
+    struct PostcodeRegion {
+        std::string postcode;
+        int mininum;
+        int maximum;
+        int region;
+    };
 
     int calculate_region_identifier(const std::string& postcode) {
         // regioncodes from https://www.bre.co.uk/filelibrary/SAP/2012/SAP-2012_9-92.pdf p177
@@ -534,47 +545,6 @@ namespace heatninja2 {
 
     // OPTIMAL SPECIFICATIONS
 
-    enum class HeatOption : int {
-        ERH = 0, // electric resistance heating
-        ASHP = 1, // air source heat pump
-        GSHP = 2 // ground source heat pump
-    };
-
-    enum class SolarOption : int {
-        None = 0,
-        PV = 1, // PV = Photovoltaics
-        FP = 2, // FP = Flat Plate
-        ET = 3, // ET = Evacuate Tube
-        FP_PV = 4,
-        ET_PV = 5,
-        PVT = 6 // PVT = Photovoltaic thermal hybrid solar collector
-    };
-
-    enum class Tariff : int {
-        FlatRate = 0,
-        Economy7 = 1,
-        BulbSmart = 2,
-        OctopusGo = 3,
-        OctopusAgile = 4
-    };
-
-    struct HeatSolarSystemSpecifications {
-        HeatOption heat_option;
-        SolarOption solar_option;
-        
-        int pv_size;
-        int solar_thermal_size;
-        float tes_volume;
-
-        Tariff tariff;
-
-        float operational_expenditure;
-        float capital_expenditure;
-        float net_present_cost;
-        
-        float operation_emissions;
-    };
-
     float calculate_coldest_outside_temperature_of_year(const float latitude, const float longitude) {
         const std::map<std::string, float> coldest_outside_temperatures_of_year_per_region = { { "50.0_-3.5", 4.61f }, { "50.0_-4.0", 4.554f }, { "50.0_-4.5", 4.406f }, { "50.0_-5.0", 4.017f }, { "50.0_-5.5", 4.492f }, { "50.5_-0.5", 3.02f }, { "50.5_-1.0", 3.188f }, { "50.5_-1.5", 2.812f }, { "50.5_-2.0", 2.583f }, { "50.5_-2.5", 2.774f }, { "50.5_-3.0", 2.697f }, { "50.5_-3.5", 1.744f }, { "50.5_-4.0", 0.854f }, { "50.5_-4.5", 1.27f }, { "50.5_-5.0", 2.708f }, { "50.5_0.0", 2.886f }, { "50.5_0.5", 2.764f }, { "51.0_-0.5", -3.846f }, { "51.0_-1.0", -4.285f }, { "51.0_-1.5", -4.421f }, { "51.0_-2.0", -4.274f }, { "51.0_-2.5", -3.764f }, { "51.0_-3.0", -2.635f }, { "51.0_-3.5", -1.712f }, { "51.0_-4.0", -0.232f }, { "51.0_-4.5", 1.638f }, { "51.0_0.0", -3.344f }, { "51.0_0.5", -2.101f }, { "51.0_1.0", 0.307f }, { "51.0_1.5", 1.271f }, { "51.5_-0.5", -5.969f }, { "51.5_-1.0", -5.673f }, { "51.5_-1.5", -5.09f }, { "51.5_-2.0", -4.292f }, { "51.5_-2.5", -3.039f }, { "51.5_-3.0", -1.591f }, { "51.5_-3.5", 0.221f }, { "51.5_-4.0", 1.249f }, { "51.5_-4.5", 2.001f }, { "51.5_-5.0", 2.948f }, { "51.5_0.0", -5.628f }, { "51.5_0.5", -4.165f }, { "51.5_1.0", -1.369f }, { "51.5_1.5", 1.813f }, { "52.0_-0.5", -5.601f }, { "52.0_-1.0", -5.283f }, { "52.0_-1.5", -4.854f }, { "52.0_-2.0", -4.37f }, { "52.0_-2.5", -3.7f }, { "52.0_-3.0", -3.597f }, { "52.0_-3.5", -3.13f }, { "52.0_-4.0", -2.297f }, { "52.0_-4.5", -0.642f }, { "52.0_-5.0", 2.044f }, { "52.0_-5.5", 3.622f }, { "52.0_0.0", -5.439f }, { "52.0_0.5", -4.533f }, { "52.0_1.0", -2.836f }, { "52.0_1.5", 0.146f }, { "52.5_-0.5", -4.979f }, { "52.5_-1.0", -4.814f }, { "52.5_-1.5", -4.451f }, { "52.5_-2.0", -3.991f }, { "52.5_-2.5", -3.603f }, { "52.5_-3.0", -3.359f }, { "52.5_-3.5", -3.007f }, { "52.5_-4.0", -0.479f }, { "52.5_-4.5", 2.769f }, { "52.5_0.0", -4.845f }, { "52.5_0.5", -4.0f }, { "52.5_1.0", -3.96f }, { "52.5_1.5", -1.778f }, { "52.5_2.0", 1.576f }, { "53.0_-0.5", -4.434f }, { "53.0_-1.0", -4.51f }, { "53.0_-1.5", -4.234f }, { "53.0_-2.0", -3.806f }, { "53.0_-2.5", -3.409f }, { "53.0_-3.0", -2.964f }, { "53.0_-3.5", -2.419f }, { "53.0_-4.0", -0.304f }, { "53.0_-4.5", 1.987f }, { "53.0_-5.0", 3.827f }, { "53.0_0.0", -4.07f }, { "53.0_0.5", -1.754f }, { "53.0_1.0", 0.277f }, { "53.0_1.5", 1.709f }, { "53.0_2.0", 2.397f }, { "53.5_-0.5", -4.156f }, { "53.5_-1.0", -4.141f }, { "53.5_-1.5", -3.834f }, { "53.5_-2.0", -3.492f }, { "53.5_-2.5", -2.729f }, { "53.5_-3.0", -1.344f }, { "53.5_-3.5", 0.446f }, { "53.5_-4.0", 1.524f }, { "53.5_-4.5", 2.578f }, { "53.5_0.0", -2.173f }, { "53.5_0.5", 1.351f }, { "54.0_-0.5", -2.622f }, { "54.0_-1.0", -3.424f }, { "54.0_-1.5", -3.834f }, { "54.0_-2.0", -3.837f }, { "54.0_-2.5", -2.766f }, { "54.0_-3.0", -0.56f }, { "54.0_-3.5", 1.22f }, { "54.0_-5.5", 3.297f }, { "54.0_-6.0", 1.151f }, { "54.0_-6.5", -1.496f }, { "54.0_-7.0", -3.164f }, { "54.0_-7.5", -3.294f }, { "54.0_-8.0", -2.848f }, { "54.0_0.0", 0.231f }, { "54.5_-0.5", 0.579f }, { "54.5_-1.0", -1.903f }, { "54.5_-1.5", -4.414f }, { "54.5_-2.0", -5.579f }, { "54.5_-2.5", -5.161f }, { "54.5_-3.0", -2.187f }, { "54.5_-3.5", -0.424f }, { "54.5_-4.0", 1.047f }, { "54.5_-4.5", 2.244f }, { "54.5_-5.0", 2.994f }, { "54.5_-5.5", 1.337f }, { "54.5_-6.0", -0.575f }, { "54.5_-6.5", -2.338f }, { "54.5_-7.0", -3.041f }, { "54.5_-7.5", -2.662f }, { "54.5_-8.0", -1.808f }, { "55.0_-1.5", -0.996f }, { "55.0_-2.0", -4.155f }, { "55.0_-2.5", -6.204f }, { "55.0_-3.0", -4.514f }, { "55.0_-3.5", -2.703f }, { "55.0_-4.0", -1.58f }, { "55.0_-4.5", -0.407f }, { "55.0_-5.0", 0.806f }, { "55.0_-5.5", 2.081f }, { "55.0_-6.0", 0.887f }, { "55.0_-6.5", -0.469f }, { "55.0_-7.0", -0.993f }, { "55.0_-7.5", -0.77f }, { "55.5_-1.5", 0.873f }, { "55.5_-2.0", -2.474f }, { "55.5_-2.5", -5.702f }, { "55.5_-3.0", -5.566f }, { "55.5_-3.5", -4.895f }, { "55.5_-4.0", -4.132f }, { "55.5_-4.5", -2.358f }, { "55.5_-5.0", -0.579f }, { "55.5_-5.5", 1.338f }, { "55.5_-6.0", 2.057f }, { "55.5_-6.5", 2.505f }, { "56.0_-2.0", 1.815f }, { "56.0_-2.5", 0.195f }, { "56.0_-3.0", -2.189f }, { "56.0_-3.5", -4.626f }, { "56.0_-4.0", -5.49f }, { "56.0_-4.5", -4.919f }, { "56.0_-5.0", -3.499f }, { "56.0_-5.5", -1.181f }, { "56.0_-6.0", 1.063f }, { "56.0_-6.5", 2.977f }, { "56.5_-2.5", -0.305f }, { "56.5_-3.0", -3.11f }, { "56.5_-3.5", -5.41f }, { "56.5_-4.0", -6.757f }, { "56.5_-4.5", -7.005f }, { "56.5_-5.0", -5.879f }, { "56.5_-5.5", -3.253f }, { "56.5_-6.0", 0.046f }, { "56.5_-6.5", 2.699f }, { "56.5_-7.0", 4.242f }, { "57.0_-2.0", 1.061f }, { "57.0_-2.5", -4.347f }, { "57.0_-3.0", -6.774f }, { "57.0_-3.5", -8.256f }, { "57.0_-4.0", -8.531f }, { "57.0_-4.5", -8.952f }, { "57.0_-5.0", -7.613f }, { "57.0_-5.5", -4.211f }, { "57.0_-6.0", -0.368f }, { "57.0_-6.5", 2.421f }, { "57.0_-7.0", 3.249f }, { "57.0_-7.5", 4.066f }, { "57.5_-2.0", 0.562f }, { "57.5_-2.5", -2.636f }, { "57.5_-3.0", -3.24f }, { "57.5_-3.5", -3.825f }, { "57.5_-4.0", -4.351f }, { "57.5_-4.5", -5.412f }, { "57.5_-5.0", -7.049f }, { "57.5_-5.5", -3.771f }, { "57.5_-6.0", 0.002f }, { "57.5_-6.5", 2.105f }, { "57.5_-7.0", 2.649f }, { "57.5_-7.5", 3.287f }, { "58.0_-3.5", 1.614f }, { "58.0_-4.0", -0.872f }, { "58.0_-4.5", -2.392f }, { "58.0_-5.0", -2.029f }, { "58.0_-5.5", 0.609f }, { "58.0_-6.0", 2.139f }, { "58.0_-6.5", 2.056f }, { "58.0_-7.0", 1.757f }, { "58.5_-3.0", 1.924f }, { "58.5_-3.5", 1.382f }, { "58.5_-4.0", 0.97f }, { "58.5_-4.5", 0.903f }, { "58.5_-5.0", 1.605f }, { "58.5_-5.5", 2.935f }, { "58.5_-6.0", 2.901f }, { "58.5_-6.5", 2.723f }, { "58.5_-7.0", 2.661f }, { "59.0_-2.5", 2.975f }, { "59.0_-3.0", 2.525f }, { "59.0_-3.5", 3.066f }, { "59.5_-1.5", 3.281f }, { "59.5_-2.5", 3.684f }, { "59.5_-3.0", 3.79f }, { "60.0_-1.0", 2.361f }, { "60.0_-1.5", 2.383f }, { "60.5_-1.0", 1.794f }, { "60.5_-1.5", 1.783f }, { "61.0_-1.0", 1.721f }
         };
@@ -590,11 +560,11 @@ namespace heatninja2 {
         return 15 - (latitude - 50) * (4.0f / 9.0f); // Linear regression ground temp across UK at 100m depth
     }
 
-    float calculate_tes_range(const float tes_volume_max) {
-        return tes_volume_max / 0.1f;
+    int calculate_tes_range(const float tes_volume_max) {
+        return static_cast<int>(tes_volume_max / 0.1f);
     }
 
-    float calculate_solar_maximum(const float house_size) {
+    int calculate_solar_maximum(const float house_size) {
         return static_cast<int>(house_size / 8) * 2;  // Quarter of the roof for solar, even number
     }
 
@@ -613,7 +583,7 @@ namespace heatninja2 {
         }
     }
 
-    float calculate_cop_worst(const HeatOption hp_option, const float hot_water_temp, const float coldest_outside_temp) {
+    float calculate_cop_worst(const HeatOption hp_option, const int hot_water_temp, const float coldest_outside_temp) {
         switch (hp_option) // hp sources: A review of domestic heat pumps
         {
         case HeatOption::ERH:
@@ -628,13 +598,18 @@ namespace heatninja2 {
     float calculate_hp_electrical_power(const HeatOption hp_option, const float max_hourly_erh_demand, const float max_hourly_hp_demand, const float cop_worst) {
         // Mitsubishi have 4kWth ASHP, Kensa have 3kWth GSHP
         // 7kWth Typical maximum size for domestic power
+        float hp_electrical_power;
         switch (hp_option)
         {
         case HeatOption::ERH:
-            return std::min(std::max(max_hourly_erh_demand, 4.0f / cop_worst), 7.0f);
+            hp_electrical_power = max_hourly_erh_demand;
         default: // ASHP or GSHP
-            return std::min(std::max(max_hourly_hp_demand, 4.0f / cop_worst), 7.0f);
+            hp_electrical_power = max_hourly_hp_demand / cop_worst;
         }
+
+        if (hp_electrical_power * cop_worst < 4.0f) hp_electrical_power = 4.0f / cop_worst;
+        if (hp_electrical_power > 7.0f) hp_electrical_power = 7.0f;
+        return hp_electrical_power;
     }
 
     int calculate_solar_size_range(const SolarOption solar_option, const int solar_maximum) {
@@ -677,29 +652,30 @@ namespace heatninja2 {
     }
 
     float get_or_calculate(const size_t i, const size_t j, const size_t x_size, float& min_z, std::vector<float>& zs,
-        const HeatOption hp_option, const SolarOption solar_option, float& optimum_tes_npc, const int solar_maximum, const float cop_worst, const float hp_electrical_power, const float ground_temp, HeatSolarSystemSpecifications& optimal_spec, const std::array<float, 24>* temp_profile) {
+        const HeatOption hp_option, const SolarOption solar_option, float& optimum_tes_npc, const int solar_maximum, const float cop_worst, const float hp_electrical_power, const float ground_temp, HeatSolarSystemSpecifications& optimal_spec, const std::array<float, 24>* temp_profile, const float thermostat_temperature, const int hot_water_temperature, const float cumulative_discount_rate, const std::array<float, 12>& monthly_solar_gain_ratios_north, const std::array<float, 12>& monthly_solar_gain_ratios_south, const std::array<float, 12>& monthly_cold_water_temperatures, const std::array<float, 12>& dhw_monthly_factors, const std::array<float, 12>& monthly_solar_declinations, const std::array<float, 12>& monthly_roof_ratios_south, const std::vector<float>& hourly_outside_temperatures_over_year, const std::vector<float>& hourly_solar_irradiances_over_year, const float u_value, const float heat_capacity, const std::vector<float>& agile_tariff_per_hour_over_year, const std::array<float, 24>& hot_water_hourly_ratios, const float average_daily_hot_water_volume, const int grid_emissions, const float solar_gain_house_factor, const float body_heat_gain, const float house_size_thermal_transmittance_product) {
         constexpr float unset_z = 3.40282e+038f;
         float& z = zs.at(i + j * x_size);
         if (z == unset_z) {
-            z = calculate_optimal_tariff(hp_option, solar_option, static_cast<int>(j), optimum_tes_npc, solar_maximum, static_cast<int>(i), cop_worst, hp_electrical_power, ground_temp, optimal_spec, temp_profile);
+            z = calculate_optimal_tariff(hp_option, solar_option, static_cast<int>(j), optimum_tes_npc, solar_maximum, static_cast<int>(i), cop_worst, hp_electrical_power, ground_temp, optimal_spec, temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
             if (z < min_z) min_z = z;
         }
         return z;
     }
 
     void if_unset_calculate(const size_t i, const size_t j, const size_t x_size, float& min_z, std::vector<float>& zs,
-        const HeatOption hp_option, const SolarOption solar_option, float& optimum_tes_npc, const int solar_maximum, const float cop_worst, const float hp_electrical_power, const float ground_temp, HeatSolarSystemSpecifications& optimal_spec, const std::array<float, 24>* temp_profile) {
+        const HeatOption hp_option, const SolarOption solar_option, float& optimum_tes_npc, const int solar_maximum, const float cop_worst, const float hp_electrical_power, const float ground_temp, HeatSolarSystemSpecifications& optimal_spec, const std::array<float, 24>* temp_profile, const float thermostat_temperature, const int hot_water_temperature, const float cumulative_discount_rate, const std::array<float, 12>& monthly_solar_gain_ratios_north, const std::array<float, 12>& monthly_solar_gain_ratios_south, const std::array<float, 12>& monthly_cold_water_temperatures, const std::array<float, 12>& dhw_monthly_factors, const std::array<float, 12>& monthly_solar_declinations, const std::array<float, 12>& monthly_roof_ratios_south, const std::vector<float>& hourly_outside_temperatures_over_year, const std::vector<float>& hourly_solar_irradiances_over_year, const float u_value, const float heat_capacity, const std::vector<float>& agile_tariff_per_hour_over_year, const std::array<float, 24>& hot_water_hourly_ratios, const float average_daily_hot_water_volume, const int grid_emissions, const float solar_gain_house_factor, const float body_heat_gain, const float house_size_thermal_transmittance_product) {
         constexpr float unset_z = 3.40282e+038f;
         // i = tes_option, j = solar_size
         if (zs.at(i + j * x_size) == unset_z) {
             // return what ever variable you want to optimise by (designed for npc)
-            float z = calculate_optimal_tariff(hp_option, solar_option, static_cast<int>(j), optimum_tes_npc, solar_maximum, static_cast<int>(i), cop_worst, hp_electrical_power, ground_temp, optimal_spec, temp_profile);
+            float z = calculate_optimal_tariff(hp_option, solar_option, static_cast<int>(j), optimum_tes_npc, solar_maximum, static_cast<int>(i), cop_worst, hp_electrical_power, ground_temp, optimal_spec, temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
             // may not need min_z
             if (z < min_z) min_z = z;
         }
     }
 
-    void simulate_heat_solar_combination(const HeatOption hp_option, const SolarOption solar_option, const int solar_maximum, const int tes_range, const float ground_temp, HeatSolarSystemSpecifications& optimal_spec, const std::array<float, 24>& erh_hourly_temperatures_over_day, const std::array<float, 24>& hp_hourly_temperatures_over_day, const int hot_water_temperature, const float coldest_outside_temperature_of_year, const float maximum_hourly_erh_demand, const float maximum_hourly_hp_demand) {
+    void simulate_heat_solar_combination(const HeatOption hp_option, const SolarOption solar_option, const int solar_maximum, const int tes_range, const float ground_temp, HeatSolarSystemSpecifications& optimal_spec, const std::array<float, 24>& erh_hourly_temperatures_over_day, const std::array<float, 24>& hp_hourly_temperatures_over_day, const int hot_water_temperature, const float coldest_outside_temperature_of_year, const float maximum_hourly_erh_demand, const float maximum_hourly_hp_demand, const float thermostat_temperature, const float cumulative_discount_rate, const std::array<float, 12>& monthly_solar_gain_ratios_north, const std::array<float, 12>& monthly_solar_gain_ratios_south, const std::array<float, 12>& monthly_cold_water_temperatures, const std::array<float, 12>& dhw_monthly_factors, const std::array<float, 12>& monthly_solar_declinations, const std::array<float, 12>& monthly_roof_ratios_south, const std::vector<float>& hourly_outside_temperatures_over_year, const std::vector<float>& hourly_solar_irradiances_over_year, const float u_value, const float heat_capacity, const std::vector<float>& agile_tariff_per_hour_over_year, const std::array<float, 24>& hot_water_hourly_ratios, const float average_daily_hot_water_volume, const int grid_emissions, const float solar_gain_house_factor, const float body_heat_gain, const float house_size_thermal_transmittance_product) {
+
         const std::array<float, 24>& temp_profile = select_temp_profile(hp_option, hp_hourly_temperatures_over_day, erh_hourly_temperatures_over_day);
         const float cop_worst = calculate_cop_worst(hp_option, hot_water_temperature, coldest_outside_temperature_of_year);
         const float hp_electrical_power = calculate_hp_electrical_power(hp_option, maximum_hourly_erh_demand, maximum_hourly_hp_demand, cop_worst);
@@ -738,10 +714,10 @@ namespace heatninja2 {
 
             // calculate z for each position and set the min_z and steepest gradient for x & y
             for (IndexRect& r : index_rects) {
-                const float z11 = get_or_calculate(r.i1, r.j1, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
-                const float z21 = get_or_calculate(r.i2, r.j1, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
-                const float z22 = get_or_calculate(r.i2, r.j2, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
-                const float z12 = get_or_calculate(r.i1, r.j2, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+                const float z11 = get_or_calculate(r.i1, r.j1, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
+                const float z21 = get_or_calculate(r.i2, r.j1, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
+                const float z22 = get_or_calculate(r.i2, r.j2, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
+                const float z12 = get_or_calculate(r.i1, r.j2, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
 
                 const float mx = std::abs((z11 - z21) / (r.i2 - r.i1));
                 const float my = std::abs((z11 - z12) / (r.j2 - r.j1));
@@ -765,10 +741,10 @@ namespace heatninja2 {
                     // assume length > 1 as it is checked when creating a new segment
 
                     // get npc at nodes of segment
-                    const float z11 = get_or_calculate(r.i1, r.j1, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
-                    const float z21 = get_or_calculate(r.i2, r.j1, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
-                    const float z22 = get_or_calculate(r.i2, r.j2, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
-                    const float z12 = get_or_calculate(r.i1, r.j2, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+                    const float z11 = get_or_calculate(r.i1, r.j1, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
+                    const float z21 = get_or_calculate(r.i2, r.j1, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
+                    const float z22 = get_or_calculate(r.i2, r.j2, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
+                    const float z12 = get_or_calculate(r.i1, r.j2, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
 
                     // get node with lowest npc
                     float min_local_z = min_4f(z11, z21, z22, z12);
@@ -784,8 +760,8 @@ namespace heatninja2 {
                         else if (di == 1) { // rect only divisible along j
                             const size_t j12 = r.j1 + dj / 2;
 
-                            if_unset_calculate(r.i1, j12, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
-                            if_unset_calculate(r.i2, j12, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+                            if_unset_calculate(r.i1, j12, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
+                            if_unset_calculate(r.i2, j12, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
 
                             // if rect can be subdivided then subdivide
                             if (j12 - r.j1 > 1) next_index_rects.emplace_back(IndexRect{ r.i1, r.j1,  r.i2, j12 });
@@ -794,8 +770,8 @@ namespace heatninja2 {
                         else if (dj == 1) { // rect only divisible along i
                             const size_t i12 = r.i1 + di / 2;
 
-                            if_unset_calculate(i12, r.j1, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
-                            if_unset_calculate(i12, r.j2, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+                            if_unset_calculate(i12, r.j1, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
+                            if_unset_calculate(i12, r.j2, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
 
                             // if rect can be subdivided then subdivide
                             if (i12 - r.i1 > 1) next_index_rects.emplace_back(IndexRect{ r.i1, r.j1,  i12, r.j2 });
@@ -806,11 +782,11 @@ namespace heatninja2 {
                             const size_t i12 = r.i1 + di / 2;
                             const size_t j12 = r.j1 + dj / 2;
 
-                            if_unset_calculate(i12, r.j1, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
-                            if_unset_calculate(i12, r.j2, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
-                            if_unset_calculate(r.i1, j12, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
-                            if_unset_calculate(r.i2, j12, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
-                            if_unset_calculate(i12, j12, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+                            if_unset_calculate(i12, r.j1, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
+                            if_unset_calculate(i12, r.j2, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
+                            if_unset_calculate(r.i1, j12, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
+                            if_unset_calculate(r.i2, j12, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
+                            if_unset_calculate(i12, j12, x_size, min_z, zs, hp_option, solar_option, optimum_tes_npc, solar_maximum, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
 
                             const bool sub_i1 = i12 - r.i1 == 1, sub_i2 = r.i2 - i12 == 1;
                             const bool sub_j1 = j12 - r.j1 == 1, sub_j2 = r.j2 - j12 == 1;
@@ -853,7 +829,7 @@ namespace heatninja2 {
 
         for (int solar_size = 0; solar_size < solar_size_range; ++solar_size) {
             for (int tes_option = 0; tes_option < tes_range; ++tes_option) {
-                calculate_optimal_tariff(hp_option, solar_option, solar_size, optimum_tes_npc, solar_maximum, tes_option, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile);
+                calculate_optimal_tariff(hp_option, solar_option, solar_size, optimum_tes_npc, solar_maximum, tes_option, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
             }
         }
     }
@@ -968,7 +944,7 @@ namespace heatninja2 {
         return ratios_roof_south;
     }
 
-    float calculate_optimal_tariff(const HeatOption hp_option, const SolarOption solar_option, const int solar_size, float& optimum_tes_npc, const int solar_maximum, const int tes_option, const float cop_worst, const float hp_electrical_power, const float ground_temp, HeatSolarSystemSpecifications& optimal_spec, const std::array<float, 24>* temp_profile, const float thermostat_temperature, const int hot_water_temperature, const float cumulative_discount_rate, const std::array<float, 12>& monthly_solar_gain_ratios_north, const std::array<float, 12>& monthly_solar_gain_ratios_south, const std::array<float, 12>& monthly_cold_water_temperatures, const std::array<float, 12>& dhw_monthly_factors, const std::array<float, 12>& monthly_solar_declinations, const std::array<float, 12>& monthly_roof_ratios_south) {
+    float calculate_optimal_tariff(const HeatOption hp_option, const SolarOption solar_option, const int solar_size, float& optimum_tes_npc, const int solar_maximum, const int tes_option, const float cop_worst, const float hp_electrical_power, const float ground_temp, HeatSolarSystemSpecifications& optimal_spec, const std::array<float, 24>* temp_profile, const float thermostat_temperature, const int hot_water_temperature, const float cumulative_discount_rate, const std::array<float, 12>& monthly_solar_gain_ratios_north, const std::array<float, 12>& monthly_solar_gain_ratios_south, const std::array<float, 12>& monthly_cold_water_temperatures, const std::array<float, 12>& dhw_monthly_factors, const std::array<float, 12>& monthly_solar_declinations, const std::array<float, 12>& monthly_roof_ratios_south, const std::vector<float>& hourly_outside_temperatures_over_year, const std::vector<float>& hourly_solar_irradiances_over_year, const float u_value, const float heat_capacity, const std::vector<float>& agile_tariff_per_hour_over_year, const std::array<float, 24>& hot_water_hourly_ratios, const float average_daily_hot_water_volume, const int grid_emissions, const float solar_gain_house_factor, const float body_heat_gain, const float house_size_thermal_transmittance_product) {
         // find optimal for given solar_size and tes_vol
         const int solar_thermal_size = calculate_solar_thermal_size(solar_option, solar_size);
         const int pv_size = calculate_pv_size(solar_option, solar_size, solar_maximum, solar_thermal_size);
@@ -976,9 +952,16 @@ namespace heatninja2 {
         const float hp_electrical_power_worst = hp_electrical_power * cop_worst; // hp option
         const float capex = calculate_capex_heatopt(hp_option, hp_electrical_power_worst) + calculate_capex_pv(solar_option, pv_size) + calculate_capex_solar_thermal(solar_option, solar_thermal_size) + calculate_capex_tes_volume(tes_volume_current);
 
-        const std::array<std::string, 3> heat_opt_names = { "ERH", "ASHP", "GSHP" };
-        const std::array<std::string, 7> solar_opt_names = { "None", "PV", "FP", "ET", "FP+PV", "ET+PV", "PVT" };
-        const std::array<std::string, 5> tariff_names = { "Flat Rate", "Economy 7", "Bulb Smart", "Octopus Go", "Octopus Agile" };
+        const float tes_radius = std::pow((tes_volume_current / (2 * PI)), (1.0f / 3.0f));  //For cylinder with height = 2x radius
+        const float tes_charge_full = tes_volume_current * 1000 * 4.18f * (hot_water_temperature - 40) / 3600; // 40 min temp
+        const float tes_charge_boost = tes_volume_current * 1000 * 4.18f * (60 - 40) / 3600; //  # kWh, 60C HP with PV boost
+        const float tes_charge_max = tes_volume_current * 1000 * 4.18f * (95 - 40) / 3600; //  # kWh, 95C electric and solar
+
+        const float tes_charge_min = 10 * 4.18f * (hot_water_temperature - 10) / 3600; // 10litres hot min amount
+        //CWT coming in from DHW re - fill, accounted for by DHW energy out, DHW min useful temperature 40°C
+        //Space heating return temperature would also be ~40°C with flow at 51°C
+
+        constexpr std::array<int, 12> days_in_months = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
         float optimum_tariff = 1000000;
         float min_npc = 1000000;
@@ -992,18 +975,8 @@ namespace heatninja2 {
             float operational_costs_off_peak = 0;
             float operation_emissions = 0;
 
-            const float tes_radius = std::pow((tes_volume_current / (2 * PI)), (1.0f / 3.0f));  //For cylinder with height = 2x radius
-            const float tes_charge_full = tes_volume_current * 1000 * 4.18f * (hot_water_temperature - 40) / 3600; // 40 min temp
-            const float tes_charge_boost = tes_volume_current * 1000 * 4.18f * (60 - 40) / 3600; //  # kWh, 60C HP with PV boost
-            const float tes_charge_max = tes_volume_current * 1000 * 4.18f * (95 - 40) / 3600; //  # kWh, 95C electric and solar
-
-            const float tes_charge_min = 10 * 4.18f * (hot_water_temperature - 10) / 3600; // 10litres hot min amount
-            //CWT coming in from DHW re - fill, accounted for by DHW energy out, DHW min useful temperature 40°C
-            //Space heating return temperature would also be ~40°C with flow at 51°C
             float tes_state_of_charge = tes_charge_full;  // kWh, for H2O, starts full to prevent initial demand spike
             // https ://www.sciencedirect.com/science/article/pii/S0306261916302045
-
-            constexpr std::array<int, 12> days_in_months = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
             int month = 0;
             for (int days_in_month : days_in_months) {
@@ -1016,12 +989,12 @@ namespace heatninja2 {
                 float ratio_roof_south = monthly_roof_ratios_south.at(month);
 
                 for (size_t day = 0; day < days_in_month; ++day) {
-                    simulate_heating_system_for_day(temp_profile, inside_temp_current, ratio_sg_south, ratio_sg_north, cwt_current, dhw_mf_current, tes_state_of_charge, tes_charge_full, tes_charge_boost, tes_charge_max, tes_radius, ground_temp, hp_option, solar_option, pv_size, solar_thermal_size, hp_electrical_power, tariff, operational_costs_peak, operational_costs_off_peak, operation_emissions, solar_thermal_generation_total, ratio_roof_south, tes_charge_min, hour_year_counter);
+                    simulate_heating_system_for_day(temp_profile, inside_temp_current, ratio_sg_south, ratio_sg_north, cwt_current, dhw_mf_current, tes_state_of_charge, tes_charge_full, tes_charge_boost, tes_charge_max, tes_radius, ground_temp, hp_option, solar_option, pv_size, solar_thermal_size, hp_electrical_power, tariff, operational_costs_peak, operational_costs_off_peak, operation_emissions, solar_thermal_generation_total, ratio_roof_south, tes_charge_min, hour_year_counter, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, hot_water_temperature, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
                 }
                 ++month;
             }
 
-            float total_operational_cost = operational_costs_peak + operational_costs_off_peak; // tariff
+            const float total_operational_cost = operational_costs_peak + operational_costs_off_peak; // tariff
             const float npc = capex + total_operational_cost * cumulative_discount_rate;
             if (npc < min_npc) min_npc = npc;
 
@@ -1040,7 +1013,7 @@ namespace heatninja2 {
         return min_npc;
     }
 
-    void calculate_inside_temp_change(float& inside_temp_current, const float outside_temp_current, const float solar_irradiance_current, const float ratio_sg_south, const float ratio_sg_north, const float ratio_roof_south) {
+    void calculate_inside_temp_change(float& inside_temp_current, const float outside_temp_current, const float solar_irradiance_current, const float ratio_sg_south, const float ratio_sg_north, const float ratio_roof_south, const float solar_gain_house_factor, const float body_heat_gain, const float house_size_thermal_transmittance_product, const float heat_capacity) {
         const float incident_irradiance_sg_s = solar_irradiance_current * ratio_sg_south;
         const float incident_irradiance_sg_n = solar_irradiance_current * ratio_sg_north;
         const float solar_gain_south = incident_irradiance_sg_s * solar_gain_house_factor;
@@ -1054,26 +1027,22 @@ namespace heatninja2 {
         inside_temp_current += (-heat_loss + solar_gain_south + solar_gain_north + body_heat_gain) / heat_capacity;
     }
 
-    struct TesTempAndHeight {
-        float upper_temperature, lower_temperature, thermocline_height;
+    TesTempAndHeight::TesTempAndHeight(const float upper_temperature, const float lower_temperature, const float thermocline_height)
+        : upper_temperature(upper_temperature), lower_temperature(lower_temperature), thermocline_height(clamp_height(thermocline_height)) {
 
-        TesTempAndHeight(const float upper_temperature, const float lower_temperature, const float thermocline_height)
-            : upper_temperature(upper_temperature), lower_temperature(lower_temperature), thermocline_height(clamp_height(thermocline_height)) {
+    }
 
+    float TesTempAndHeight::clamp_height(const float height) {
+        if (height < 0) {
+            return 0;
         }
-
-        float clamp_height(const float height) {
-            if (height < 0) {
-                return 0;
-            }
-            else if (height > 1) {
-                return 1;
-            }
-            else {
-                return height;
-            }
+        else if (height > 1) {
+            return 1;
         }
-    };
+        else {
+            return height;
+        }
+    }
 
     TesTempAndHeight calculate_tes_temp_and_thermocline_height(const float tes_state_of_charge, const float tes_charge_full, const float tes_charge_max, const float tes_charge_boost, const float cwt_current) {
         if (tes_state_of_charge <= tes_charge_full) {  // Currently at nominal temperature ranges
@@ -1089,7 +1058,288 @@ namespace heatninja2 {
         }
     }
 
-    void simulate_heating_system_for_day(const std::array<float, 24>* temp_profile, float& inside_temp_current, const float ratio_sg_south, const float ratio_sg_north, const float cwt_current, float dhw_mf_current, float& tes_state_of_charge, const float tes_charge_full, const float tes_charge_boost, const float tes_charge_max, const float tes_radius, const float ground_temp, const HeatOption hp_option, const SolarOption solar_option, const int pv_size, const int solar_thermal_size, const float hp_electrical_power, const Tariff tariff, float& operational_costs_peak, float& operational_costs_off_peak, float& operation_emissions, float& solar_thermal_generation_total, const float ratio_roof_south, const float tes_charge_min, size_t& hour_year_counter, const std::vector<float>& hourly_outside_temperatures_over_year, const std::vector<float> hourly_solar_irradiances_over_year, const float u_value) {
+    CopCurrentAndBoost calculate_cop_current_and_boost(const HeatOption hp_option, const float outside_temp_current, const float ground_temp, const int hot_water_temperature) {
+        // return current, boost
+        switch (hp_option)
+        {
+        case HeatOption::ERH: //Electric Heater
+            return { 1.0f, 1.0f };
+        case HeatOption::ASHP: // ASHP, source A review of domestic heat pumps
+            return { ax2bxc(0.00063f, -0.121f, 6.81f, hot_water_temperature - outside_temp_current), ax2bxc(0.00063f, -0.121f, 6.81f, 60 - outside_temp_current) };
+        default: // GSHP, source A review of domestic heat pumps
+            return { ax2bxc(0.000734f, -0.150f, 8.77f, hot_water_temperature - ground_temp), ax2bxc(0.000734f, -0.150f, 8.77f, 60 - ground_temp) };
+        }
+    }
+
+    float calculate_pv_efficiency(const SolarOption solar_option, const float tes_upper_temperature, const float tes_lower_temperature) {
+        switch (solar_option)
+        {
+        case SolarOption::PVT: // PVT
+            return(14.7f * (1 - 0.0045f * ((tes_upper_temperature + tes_lower_temperature) / 2.0f - 25))) / 100;
+            // https://www.sciencedirect.com/science/article/pii/S0306261919313443#b0175
+        default:
+            return 0.1928f;
+            // Technology Library https ://zenodo.org/record/4692649#.YQEbio5KjIV
+            // monocrystalline used for domestic
+        }
+    }
+
+    float calculate_solar_thermal_generation_current(const SolarOption solar_option, const float tes_upper_temperature, const float tes_lower_temperature, const int solar_thermal_size, const float incident_irradiance_roof_south, const float outside_temp_current) {
+        float solar_thermal_generation_current = 0; // if solar_option < 2
+        if (solar_option >= SolarOption::FP) {
+            const float solar_thermal_collector_temperature = (tes_upper_temperature + tes_lower_temperature) / 2;
+            // Collector to heat from tes lower temperature to tes upper temperature, so use the average temperature
+
+            if (incident_irradiance_roof_south == 0) {
+                return 0;
+            }
+            else {
+                float a, b, c;
+                switch (solar_option)
+                {
+                case SolarOption::FP: // Flat plate
+                case SolarOption::FP_PV:
+                    // https://www.sciencedirect.com/science/article/pii/B9781782422136000023
+                    a = -0.000038f; b = -0.0035f; c = 0.78f;
+                    break;
+                case SolarOption::PVT: // PVT 
+                    // https://www.sciencedirect.com/science/article/pii/S0306261919313443#b0175
+                    a = -0.0000176f; b = -0.003325f; c = 0.726f;
+                    break;
+                default: // Evacuated tube
+                    // https://www.sciencedirect.com/science/article/pii/B9781782422136000023
+                    a = -0.00002f; b = -0.0009f; c = 0.625f;
+                    break;
+                }
+                return std::max(0.8f * solar_thermal_size * ax2bxc(a, b, c * incident_irradiance_roof_south, solar_thermal_collector_temperature - outside_temp_current), 0.0f);
+            }
+        }
+        else {
+            return 0;
+        }
+    }
+
+    float calculate_hourly_space_demand(float& inside_temp_current, const float desired_min_temp_current, const float cop_current, const float tes_state_of_charge, const float dhw_hr_demand, const float hp_electrical_power, const float heat_capacity) {
+        if (inside_temp_current > desired_min_temp_current) {
+            return 0;
+        }
+        else {
+            float space_hr_demand = (desired_min_temp_current - inside_temp_current) * heat_capacity;
+            //std::cout << space_hr_demand << ' ' << desired_min_temp_current << ' ' << inside_temp_current << '\n';
+            if ((space_hr_demand + dhw_hr_demand) < (tes_state_of_charge + hp_electrical_power * cop_current)) {
+                inside_temp_current = desired_min_temp_current;
+                return space_hr_demand;
+            }
+            else {
+                if (tes_state_of_charge > 0) { // Priority to space demand over TES charging
+                    space_hr_demand = (tes_state_of_charge + hp_electrical_power * cop_current) - dhw_hr_demand;
+                }
+                else {
+                    space_hr_demand = (hp_electrical_power * cop_current) - dhw_hr_demand;
+                }
+                inside_temp_current += space_hr_demand / heat_capacity;
+                return space_hr_demand;
+            }
+        }
+    }
+
+    float calculate_electrical_demand_for_heating(float& tes_state_of_charge, const float space_water_demand, const float hp_electrical_power, const float cop_current) {
+        if (space_water_demand < tes_state_of_charge) { // TES can provide all demand
+            tes_state_of_charge -= space_water_demand;
+            return 0;
+        }
+        else if (space_water_demand < (tes_state_of_charge + hp_electrical_power * cop_current)) {
+            if (tes_state_of_charge > 0) {
+                const float electrical_demand_current = (space_water_demand - tes_state_of_charge) / cop_current;;
+                tes_state_of_charge = 0;  // TES needs support so taken to empty if it had any charge
+                return electrical_demand_current;
+            }
+            else {
+                return space_water_demand / cop_current;
+            }
+        }
+        else { // TES and HP can't meet hour demand
+            if (tes_state_of_charge > 0) tes_state_of_charge = 0;
+            return hp_electrical_power;
+        }
+    }
+
+    void calculate_electrical_demand_for_tes_charging(float& electrical_demand_current, float& tes_state_of_charge, const float tes_charge_full, const Tariff tariff, const int hour, const float hp_electrical_power, const float cop_current, const float agile_tariff_current) {
+        // Charges TES at off peak electricity times
+        if (tes_state_of_charge < tes_charge_full &&
+            ((tariff == Tariff::FlatRate && 12 < hour && hour < 16) ||
+                (tariff == Tariff::Economy7 && (hour == 23 || hour < 6)) ||
+                (tariff == Tariff::BulbSmart && 12 < hour && hour < 16) ||
+                (tariff == Tariff::OctopusGo && 0 <= hour && hour < 5) ||
+                (tariff == Tariff::OctopusAgile && agile_tariff_current < 9.0f))) {
+            // Flat rate and smart tariff charges TES at typical day peak air temperature times
+            // GSHP is not affected so can keep to these times too
+            if ((tes_charge_full - tes_state_of_charge) < ((hp_electrical_power - electrical_demand_current) * cop_current)) {
+                // Small top up
+                electrical_demand_current += (tes_charge_full - tes_state_of_charge) / cop_current;
+                tes_state_of_charge = tes_charge_full;
+            }
+            else { // HP can not fully top up in one hour
+                tes_state_of_charge += (hp_electrical_power - electrical_demand_current) * cop_current;
+                electrical_demand_current = hp_electrical_power;
+            }
+        }
+    }
+
+    void boost_tes_and_electrical_demand(float& tes_state_of_charge, float& electrical_demand_current, const float pv_remaining_current, const float tes_charge_boost, const float hp_electrical_power, const float cop_boost) {
+        //Boost temperature if any spare PV generated electricity, as reduced cop, raises to nominal temp above first
+        const float tes_boost_state_charge_diff = tes_charge_boost - tes_state_of_charge;
+        if (pv_remaining_current > 0 && tes_boost_state_charge_diff > 0) {
+            if ((tes_boost_state_charge_diff < (pv_remaining_current * cop_boost)) && (tes_boost_state_charge_diff < ((hp_electrical_power - electrical_demand_current) * cop_boost))) {
+                electrical_demand_current += tes_boost_state_charge_diff / cop_boost;
+                tes_state_of_charge = tes_charge_boost;
+            }
+            else if (pv_remaining_current < hp_electrical_power) {
+                tes_state_of_charge += pv_remaining_current * cop_boost;
+                electrical_demand_current += pv_remaining_current;
+            }
+            else {
+                tes_state_of_charge += (hp_electrical_power - electrical_demand_current) * cop_boost;
+                electrical_demand_current = hp_electrical_power;
+            }
+        }
+    }
+
+    void recharge_tes_to_minimum(float& tes_state_of_charge, float& electrical_demand_current, const float tes_charge_min, const float hp_electrical_power, const float cop_current) {
+        if (tes_state_of_charge < tes_charge_min) { // Take back up to 10L capacity if possible no matter what time
+            if ((tes_charge_min - tes_state_of_charge) < (hp_electrical_power - electrical_demand_current) * cop_current) {
+                electrical_demand_current += (tes_charge_min - tes_state_of_charge) / cop_current;
+                tes_state_of_charge = tes_charge_min;
+            }
+            else if (electrical_demand_current < hp_electrical_power) { // Can't take all the way back up to 10L charge
+                tes_state_of_charge += (hp_electrical_power - electrical_demand_current) * cop_current;
+            }
+        }
+    }
+
+    void add_electrical_import_cost_to_opex(float& operational_costs_off_peak, float& operational_costs_peak, const float electrical_import, const Tariff tariff, const float agile_tariff_current, const int hour) {
+        switch (tariff)
+        {
+        case Tariff::FlatRate:
+            // Flat rate tariff https://www.nimblefins.co.uk/average-cost-electricity-kwh-uk#:~:text=Unit%20Cost%20of%20Electricity%20per,more%20than%20the%20UK%20average
+            // Average solar rate https://www.greenmatch.co.uk/solar-energy/solar-panels/solar-panel-grants
+            operational_costs_peak += 0.163f * electrical_import;
+            break;
+        case Tariff::Economy7:
+            // Economy 7 tariff, same source as flat rate above
+            if (hour < 6 || hour == 23) { // Off Peak
+                operational_costs_off_peak += 0.095f * electrical_import;
+            }
+            else { // Peak
+                operational_costs_peak += 0.199f * electrical_import;
+            }
+            break;
+        case Tariff::BulbSmart:
+            // Bulb smart, for East Midlands values 2021
+            // https://help.bulb.co.uk/hc/en-us/articles/360017795731-About-Bulb-s-smart-tariff
+            if (15 < hour && hour < 19) { // Peak winter times throughout the year
+                operational_costs_peak += 0.2529f * electrical_import;
+            }
+            else { // Off peak
+                operational_costs_off_peak += 0.1279f * electrical_import;
+            }
+            break;
+        case Tariff::OctopusGo:
+            // Octopus Go EV, LE10 0YE 2012, https://octopus.energy/go/rates/
+            // https://www.octopusreferral.link/octopus-energy-go-tariff/
+            if (0 <= hour && hour < 5) { // Off Peak
+                operational_costs_off_peak += 0.05f * electrical_import;
+            }
+            else { // Peak
+                operational_costs_peak += 0.1533f * electrical_import;
+            }
+            break;
+        default:
+            // Octopus Agile file 2020
+            // 2021 Octopus export rates https ://octopus.energy/outgoing/
+            if (agile_tariff_current < 9.0f) { // Off peak, lower range of variable costs
+                operational_costs_off_peak += (agile_tariff_current / 100) * electrical_import;
+            }
+            else { // Peak, upper range of variable costs
+                operational_costs_peak += (agile_tariff_current / 100) * electrical_import;
+            }
+            break;
+        }
+    }
+
+    void subtract_pv_revenue_from_opex(float& operational_costs_off_peak, float& operational_costs_peak, const float pv_equivalent_revenue, const Tariff tariff, const float agile_tariff_current, const int hour) {
+        switch (tariff)
+        {
+        case Tariff::FlatRate:
+            // Flat rate tariff https://www.nimblefins.co.uk/average-cost-electricity-kwh-uk#:~:text=Unit%20Cost%20of%20Electricity%20per,more%20than%20the%20UK%20average
+            // Average solar rate https://www.greenmatch.co.uk/solar-energy/solar-panels/solar-panel-grants
+            operational_costs_peak -= pv_equivalent_revenue * (0.163f + 0.035f) / 2;
+            break;
+        case Tariff::Economy7:
+            // Economy 7 tariff, same source as flat rate above
+            if (hour < 6 || hour == 23) { // Off Peak
+                operational_costs_off_peak -= pv_equivalent_revenue * (0.095f + 0.035f) / 2;
+            }
+            else { // Peak
+                operational_costs_peak -= pv_equivalent_revenue * (0.199f + 0.035f) / 2;
+            }
+            break;
+        case Tariff::BulbSmart:
+            // Bulb smart, for East Midlands values 2021
+            // https://help.bulb.co.uk/hc/en-us/articles/360017795731-About-Bulb-s-smart-tariff
+            if (15 < hour && hour < 19) { // Peak winter times throughout the year
+                operational_costs_peak -= pv_equivalent_revenue * (0.2529f + 0.035f) / 2;
+            }
+            else { // Off peak
+                operational_costs_off_peak -= pv_equivalent_revenue * (0.1279f + 0.035f) / 2;
+            }
+            break;
+        case Tariff::OctopusGo:
+            // Octopus Go EV, LE10 0YE 2012, https://octopus.energy/go/rates/
+            // https://www.octopusreferral.link/octopus-energy-go-tariff/
+            if (0 <= hour && hour < 5) { // Off Peak
+                operational_costs_off_peak -= pv_equivalent_revenue * (0.05f + 0.03f) / 2;
+            }
+            else { // Peak
+                operational_costs_peak -= pv_equivalent_revenue * (0.1533f + 0.03f) / 2;
+            }
+            break;
+        default:
+            // Octopus Agile file 2020
+            // 2021 Octopus export rates https ://octopus.energy/outgoing/
+            if (agile_tariff_current < 9.0f) { // Off peak, lower range of variable costs
+                operational_costs_off_peak -= pv_equivalent_revenue * ((agile_tariff_current / 100) + 0.055f) / 2;
+            }
+            else { // Peak, upper range of variable costs
+                operational_costs_peak -= pv_equivalent_revenue * ((agile_tariff_current / 100) + 0.055f) / 2;
+            }
+            break;
+        }
+    }
+
+    float calculate_emissions_solar_thermal(const float solar_thermal_generation_current) {
+        // Operational emissions summation
+        // 22.5 average ST
+        // from https ://post.parliament.uk/research-briefings/post-pn-0523/
+        return solar_thermal_generation_current * 22.5f;
+    }
+
+    float calculate_emissions_pv_generation(const float pv_generation_current, const float pv_equivalent_revenue, const int grid_emissions, const int pv_size) {
+        // https://www.parliament.uk/globalassets/documents/post/postpn_383-carbon-footprint-electricity-generation.pdf
+        // 75 for PV, 75 - Grid_Emissions show emissions saved for the grid or for reducing other electrical bills
+        if (pv_size > 0) {
+            return (pv_generation_current - pv_equivalent_revenue) * 75 + pv_equivalent_revenue * (75 - grid_emissions);
+        }
+        else {
+            return 0;
+        }
+    }
+
+    float calculate_emissions_grid_import(const float electrical_import, const int grid_emissions) {
+        return electrical_import * grid_emissions;
+    }
+
+    void simulate_heating_system_for_day(const std::array<float, 24>* temp_profile, float& inside_temp_current, const float ratio_sg_south, const float ratio_sg_north, const float cwt_current, float dhw_mf_current, float& tes_state_of_charge, const float tes_charge_full, const float tes_charge_boost, const float tes_charge_max, const float tes_radius, const float ground_temp, const HeatOption hp_option, const SolarOption solar_option, const int pv_size, const int solar_thermal_size, const float hp_electrical_power, const Tariff tariff, float& operational_costs_peak, float& operational_costs_off_peak, float& operation_emissions, float& solar_thermal_generation_total, const float ratio_roof_south, const float tes_charge_min, size_t& hour_year_counter, const std::vector<float>& hourly_outside_temperatures_over_year, const std::vector<float>& hourly_solar_irradiances_over_year, const float u_value, const float heat_capacity, const std::vector<float>& agile_tariff_per_hour_over_year, const std::array<float, 24>& hot_water_hourly_ratios, const float average_daily_hot_water_volume, const int hot_water_temperature, const int grid_emissions, const float solar_gain_house_factor, const float body_heat_gain, const float house_size_thermal_transmittance_product) {
         const float pi_d = PI * tes_radius * 2;
         const float pi_r2 = PI * tes_radius * tes_radius;
         const float pi_d2 = pi_d * tes_radius * 2;
@@ -1097,43 +1347,43 @@ namespace heatninja2 {
         for (size_t hour = 0; hour < 24; ++hour) {
             const float outside_temp_current = hourly_outside_temperatures_over_year.at(hour_year_counter);
             const float solar_irradiance_current = hourly_solar_irradiances_over_year.at(hour_year_counter);
-            calculate_inside_temp_change(inside_temp_current, outside_temp_current, solar_irradiance_current, ratio_sg_south, ratio_sg_north, ratio_roof_south);
+            calculate_inside_temp_change(inside_temp_current, outside_temp_current, solar_irradiance_current, ratio_sg_south, ratio_sg_north, ratio_roof_south, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product, heat_capacity);
             const auto [tes_upper_temperature, tes_lower_temperature, tes_thermocline_height] = calculate_tes_temp_and_thermocline_height(tes_state_of_charge, tes_charge_full, tes_charge_max, tes_charge_boost, cwt_current);
 
-            const float tes_upper_losses = (tes_upper_temperature - inside_temp_current) * u_value * (pi_d2 * tes_th.thermocline_height + pi_r2); // losses in kWh
-            const float tes_lower_losses = (tes_th.lower_temperature - inside_temp_current) * u_value * (pi_d2 * (1 - tes_th.thermocline_height) + pi_r2);
+            const float tes_upper_losses = (tes_upper_temperature - inside_temp_current) * u_value * (pi_d2 * tes_thermocline_height + pi_r2); // losses in kWh
+            const float tes_lower_losses = (tes_lower_temperature - inside_temp_current) * u_value * (pi_d2 * (1 - tes_thermocline_height) + pi_r2);
             const float total_losses = tes_upper_losses + tes_lower_losses;
             tes_state_of_charge -= total_losses;
             inside_temp_current += total_losses / heat_capacity;
 
             const float desired_min_temp_current = temp_profile->at(hour);
-            const float agile_tariff_current = agile_tariff.at(hour_year_counter);
-            const float dhw_hr_current = dhw_hourly_ratios.at(hour);
-            const float dhw_hr_demand = (dhw_avg_daily_vol * 4.18f * (hot_water_temp - cwt_current) / 3600) * dhw_mf_current * dhw_hr_current;
+            const float agile_tariff_current = agile_tariff_per_hour_over_year.at(hour_year_counter);
+            const float dhw_hr_current = hot_water_hourly_ratios.at(hour);
+            const float dhw_hr_demand = (average_daily_hot_water_volume * 4.18f * (hot_water_temperature - cwt_current) / 3600) * dhw_mf_current * dhw_hr_current;
 
-            CopCurrentAndBoost cop = calculate_cop_current_and_boost(hp_option, outside_temp_current, ground_temp);
+            const auto [cop_current, cop_boost] = calculate_cop_current_and_boost(hp_option, outside_temp_current, ground_temp, hot_water_temperature);
 
-            const float pv_efficiency = calculate_pv_efficiency(solar_option, tes_th);
+            const float pv_efficiency = calculate_pv_efficiency(solar_option, tes_upper_temperature, tes_lower_temperature);
 
             const float incident_irradiance_roof_south = solar_irradiance_current * ratio_roof_south / 1000; // kW / m2
             float pv_generation_current = pv_size * pv_efficiency * incident_irradiance_roof_south * 0.8f;  // 80 % shading factor
 
-            const float solar_thermal_generation_current = calculate_solar_thermal_generation_current(solar_option, tes_th, solar_thermal_size, incident_irradiance_roof_south, outside_temp_current);
+            const float solar_thermal_generation_current = calculate_solar_thermal_generation_current(solar_option, tes_upper_temperature, tes_lower_temperature, solar_thermal_size, incident_irradiance_roof_south, outside_temp_current);
             tes_state_of_charge += solar_thermal_generation_current;
             solar_thermal_generation_total += solar_thermal_generation_current;
             // Dumps any excess solar generated heat to prevent boiling TES
             tes_state_of_charge = std::min(tes_state_of_charge, tes_charge_max);
 
-            const float space_hr_demand = calculate_hourly_space_demand(inside_temp_current, desired_min_temp_current, cop.current, tes_state_of_charge, dhw_hr_demand, hp_electrical_power);
+            const float space_hr_demand = calculate_hourly_space_demand(inside_temp_current, desired_min_temp_current, cop_current, tes_state_of_charge, dhw_hr_demand, hp_electrical_power, heat_capacity);
 
-            float electrical_demand_current = calculate_electrical_demand_for_heating(tes_state_of_charge, space_hr_demand + dhw_hr_demand, hp_electrical_power, cop.current);
-            calculate_electrical_demand_for_tes_charging(electrical_demand_current, tes_state_of_charge, tes_charge_full, tariff, static_cast<int>(hour), hp_electrical_power, cop.current, agile_tariff_current);
+            float electrical_demand_current = calculate_electrical_demand_for_heating(tes_state_of_charge, space_hr_demand + dhw_hr_demand, hp_electrical_power, cop_current);
+            calculate_electrical_demand_for_tes_charging(electrical_demand_current, tes_state_of_charge, tes_charge_full, tariff, static_cast<int>(hour), hp_electrical_power, cop_current, agile_tariff_current);
             const float pv_remaining_current = pv_generation_current - electrical_demand_current;
 
             //Boost temperature if any spare PV generated electricity, as reduced cop, raises to nominal temp above first
-            boost_tes_and_electrical_demand(tes_state_of_charge, electrical_demand_current, pv_remaining_current, tes_charge_boost, hp_electrical_power, cop.boost);
+            boost_tes_and_electrical_demand(tes_state_of_charge, electrical_demand_current, pv_remaining_current, tes_charge_boost, hp_electrical_power, cop_boost);
 
-            recharge_tes_to_minimum(tes_state_of_charge, electrical_demand_current, tes_charge_min, hp_electrical_power, cop.current);
+            recharge_tes_to_minimum(tes_state_of_charge, electrical_demand_current, tes_charge_min, hp_electrical_power, cop_current);
 
             float pv_equivalent_revenue;
             float electrical_import;
@@ -1152,6 +1402,19 @@ namespace heatninja2 {
                 calculate_emissions_pv_generation(pv_generation_current, pv_equivalent_revenue, grid_emissions, pv_size) +
                 calculate_emissions_grid_import(electrical_import, grid_emissions);
             hour_year_counter++;
+        }
+    }
+
+    void print_optimal_specifications(const std::array<HeatSolarSystemSpecifications, 21>& optimal_specifications, const int float_print_precision) {
+        std::cout << "\n--- Optimum TES and Net Present Cost per Heating & Solar Option ---";
+        std::cout << "\nHeat Opt, Solar Opt, PV Size, Solar Size, TES Vol, OPEX, CAPEX, NPC, Emissions, Tariff\n";
+
+        const std::array<std::string, 3> heat_opt_names = { "ERH", "ASHP", "GSHP" };
+        const std::array<std::string, 7> solar_opt_names = { "None", "PV", "FP", "ET", "FP+PV", "ET+PV", "PVT" };
+        const std::array<std::string, 5> tariff_names = { "Flat Rate", "Economy 7", "Bulb Smart", "Octopus Go", "Octopus Agile" };
+
+        for (const auto& s : optimal_specifications) {
+            std::cout << heat_opt_names.at(static_cast<int>(s.heat_option)) << ", " << solar_opt_names.at(static_cast<int>(s.solar_option)) << ", " << s.pv_size << ", " << s.solar_thermal_size << ", " << s.tes_volume << ", " << float_to_string(s.operational_expenditure, float_print_precision) << ", " << float_to_string(s.capital_expenditure, float_print_precision) << ", " << float_to_string(s.net_present_cost, float_print_precision) << ", " << float_to_string(s.operation_emissions, float_print_precision) << ", " << tariff_names.at(static_cast<int>(s.tariff)) << "\n";
         }
     }
 

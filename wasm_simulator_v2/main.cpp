@@ -1162,7 +1162,7 @@ void test_heat_ninja2() {
     const float latitude = 52.3833f;
     const float longitude = -1.5833f;
 
-    heatninja2::run_simulation(thermostat_temperature, latitude, longitude, num_occupants, house_size, postcode, epc_space_heating);
+    heatninja2::run_simulation(thermostat_temperature, latitude, longitude, num_occupants, house_size, postcode, epc_space_heating, tes_volume_max);
 }
 
 int main()
