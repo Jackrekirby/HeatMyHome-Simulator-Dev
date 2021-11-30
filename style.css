@@ -196,3 +196,13 @@ td {
   padding: 0.1rem 0.2rem;
   text-align: center;
 }
+
+#sim-runtime {
+  border: 1px solid var(--light-clr);
+  background-color: var(--med-clr);
+  color: var(--light-clr);
+  padding: 0.4rem 0rem;
+  margin: 0rem 0.5rem;
+  width: 7rem;
+  font-size: 0.9rem;
+}

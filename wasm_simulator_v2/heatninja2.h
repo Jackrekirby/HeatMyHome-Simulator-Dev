@@ -1,4 +1,5 @@
 #pragma once
+#define EM_COMPATIBLE
 #include <array>
 #include <vector>
 #include <string>
@@ -9,6 +10,16 @@ namespace heatninja2 {
     // hp = heat pump
     // dhw = domestic hot water
 
+    struct SimulationOptions {
+        bool output_demand;
+        bool output_optimal_specs;
+        bool output_all_specs; // not compatible with multithreading or optimal surfaces
+        size_t output_file_index;
+
+        bool use_multithreading;
+        bool use_optimisation_surfaces;
+    };
+
     // tools
     std::string float_to_string(const float value, const int precision);
 
@@ -18,7 +29,7 @@ namespace heatninja2 {
 
     // simulation
 
-    void run_simulation(const float thermostat_temperature, const float latitude, const float longitude, const int num_occupants, const float house_size, const std::string& postcode, const int epc_space_heating, const float tes_volume_max);
+    std::string run_simulation(const float thermostat_temperature, const float latitude, const float longitude, const int num_occupants, const float house_size, const std::string& postcode, const int epc_space_heating, const float tes_volume_max, const SimulationOptions& simulation_options);
 
     float round_coordinate(const float coordinate);
 
@@ -64,15 +75,21 @@ namespace heatninja2 {
 
     const std::array<float, 24>& select_hourly_epc_temperature_profile(const size_t month, const size_t day, const std::array<float, 24>& summer_profile, const std::array<float, 24>& weekend_profile, const std::array<float, 24>& default_profile);
 
-    float calculate_dwellings_thermal_transmittance(const float house_size, const float epc_body_gain, const std::array<float, 12>& monthly_epc_outside_temperatures, const std::array<int, 12>& monthly_epc_solar_irradiances, const std::array<float, 12>& monthly_solar_height_factors, const std::array<float, 12>& monthly_solar_declinations, const std::array<float, 12>& monthly_solar_gains_south, const std::array<float, 12>& monthly_solar_gains_north, const float heat_capacity, const int epc_space_heating);
+    struct ThermalTransmittanceAndOptimisedEpcDemand {
+        float thermal_transmittance, optimised_epc_demand;
+    };
+
+    ThermalTransmittanceAndOptimisedEpcDemand calculate_dwellings_thermal_transmittance(const float house_size, const float epc_body_gain, const std::array<float, 12>& monthly_epc_outside_temperatures, const std::array<int, 12>& monthly_epc_solar_irradiances, const std::array<float, 12>& monthly_solar_height_factors, const std::array<float, 12>& monthly_solar_declinations, const std::array<float, 12>& monthly_solar_gains_south, const std::array<float, 12>& monthly_solar_gains_north, const float heat_capacity, const int epc_space_heating);
 
     struct Demand {
-        float total, max_hourly;
+        float total, max_hourly, space, hot_water;
     };
 
     Demand calculate_yearly_space_and_hot_water_demand(const std::array<float, 24>& hourly_temperatures_over_day, const float thermostat_temperature, const std::array<float, 12>& hot_water_monthly_factors, const std::array<float, 12>& monthly_cold_water_temperatures, const std::array<float, 12>& monthly_solar_gain_ratios_north, const std::array<float, 12>& monthly_solar_gain_ratios_south, const std::array<float, 24>& dhw_hourly_ratios, const std::vector<float>& hourly_outside_temperatures_over_year, const std::vector<float>& hourly_solar_irradiances_over_year, const float average_daily_hot_water_volume, const int hot_water_temperature, const float solar_gain_house_factor, const float house_size, const float dwelling_thermal_transmittance, const float heat_capacity, const float body_heat_gain);
 
     void calculate_hourly_space_and_hot_water_demand(const std::array<float, 24>& hourly_temperatures_over_day, float& inside_temp_current, const float ratio_solar_gain_south, const float ratio_solar_gain_north, const float cwt_current, const float dhw_mf_current, float& demand_total, float& dhw_total, float& max_hourly_demand, const size_t hour_year_counter, const size_t hour, const std::array<float, 24>& dhw_hourly_ratios, const std::vector<float>& hourly_outside_temperatures_over_year, const std::vector<float>& hourly_solar_irradiances_over_year, const float average_daily_hot_water_volume, const int hot_water_temperature, const float solar_gain_house_factor, const float house_size, const float dwelling_thermal_transmittance, const float heat_capacity, const float body_heat_gain);
+
+    void write_demand_data(const std::string filename, const float dwelling_thermal_transmittance, const float optimised_epc_demand, const float yearly_erh_demand, const float maximum_hourly_erh_demand, const float yearly_erh_space_demand, const float yearly_erh_hot_water_demand, const float yearly_hp_demand, const float maximum_hourly_hp_demand, const float yearly_hp_space_demand, const float yearly_hp_hot_water_demand);
 
     // OPTIMAL SPECIFICATIONS
 
@@ -212,4 +229,10 @@ namespace heatninja2 {
     void simulate_heating_system_for_day(const std::array<float, 24>* temp_profile, float& inside_temp_current, const float ratio_sg_south, const float ratio_sg_north, const float cwt_current, float dhw_mf_current, float& tes_state_of_charge, const float tes_charge_full, const float tes_charge_boost, const float tes_charge_max, const float tes_radius, const float ground_temp, const HeatOption hp_option, const SolarOption solar_option, const int pv_size, const int solar_thermal_size, const float hp_electrical_power, const Tariff tariff, float& operational_costs_peak, float& operational_costs_off_peak, float& operation_emissions, float& solar_thermal_generation_total, const float ratio_roof_south, const float tes_charge_min, size_t& hour_year_counter, const std::vector<float>& hourly_outside_temperatures_over_year, const std::vector<float>& hourly_solar_irradiances_over_year, const float u_value, const float heat_capacity, const std::vector<float>& agile_tariff_per_hour_over_year, const std::array<float, 24>& hot_water_hourly_ratios, const float average_daily_hot_water_volume, const int hot_water_temperature, const int grid_emissions, const float solar_gain_house_factor, const float body_heat_gain, const float house_size_thermal_transmittance_product);
 
     void print_optimal_specifications(const std::array<HeatSolarSystemSpecifications, 21>& optimal_specifications, const int float_print_precision);
+
+    void write_optimal_specification(const HeatSolarSystemSpecifications& spec, std::ofstream& file);
+
+    void write_optimal_specifications(const std::array<HeatSolarSystemSpecifications, 21>& optimal_specifications, const std::string& filename);
+
+    std::string output_to_javascript(const std::array<HeatSolarSystemSpecifications, 21>& optimal_specifications);
 }

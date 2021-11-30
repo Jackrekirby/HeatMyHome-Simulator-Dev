@@ -50,7 +50,15 @@
           <p>TES Max (m<sup>3</sup>)</p>
           <input id="sim-tes-max" type="number" value="0.5" />
         </div>
+        <div class="flex-row">
+          <p>Use Surface Optimisation</p>
+          <input id="sim-surface-optimisation" type="checkbox" checked />
+        </div>
         <button onclick="submitSimulation();">Run Simulation</button>
+        <div class="flex-row">
+          <p>Runtime (s)</p>
+          <p id="sim-runtime">___</p>
+        </div>
       </div>
 
       <table id="sim-table" class="hide">

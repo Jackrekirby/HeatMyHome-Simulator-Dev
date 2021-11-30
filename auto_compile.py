@@ -18,7 +18,7 @@ print(f' - 3 - Current Working Directory: {cwd}')
 
 # emscripten inputs
 cpp_dir = cwd + 'wasm_simulator_v2\\'
-cpp_files = ['heatninja.cpp', 'main.cpp']
+cpp_files = ['heatninja2.cpp', 'main.cpp']
 cpp_preload_file = 'assets'
 virtual_preload_file = 'assets'
 compiler_options = {'optimisation': '-O3', 'version': '-std=c++20',

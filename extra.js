@@ -127,15 +127,19 @@ function submitSimulation() {
     let temperature = document.getElementById('sim-temperature').value;
     let space_heating = document.getElementById('sim-space-heating').value;
     let tes_max = document.getElementById('sim-tes-max').value;
+    let use_surface_optimisation = document.getElementById('sim-surface-optimisation').checked;
 
+    document.getElementById('sim-runtime').innerHTML = '...';
     setTimeout(function () {
         let start = performance.now();
         let result = Module.ccall('run_simulation', // name of C function
             'string', // return type
-            ['string', 'number', 'number', 'number', 'number', 'number', 'number', 'number'], // argument types
-            [postcode, latitude, longitude, occupants, floor_area, temperature, space_heating, tes_max]); // arguments
+            ['string', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'bool'], // argument types
+            [postcode, latitude, longitude, occupants, floor_area, temperature, space_heating, tes_max, use_surface_optimisation]); // arguments
         let end = performance.now();
-        console.log(`Simulation Runtime: ${((end - start) / 1000.0).toPrecision(3)}s`);
+        let runtime = ((end - start) / 1000.0).toPrecision(3);
+        console.log(`Simulation Runtime: ${runtime}s`);
+        document.getElementById('sim-runtime').innerHTML = runtime;
         renderSimTable(result)
     }, 10);
 }
