@@ -1,5 +1,5 @@
 #pragma once
-#define EM_COMPATIBLE
+//#define EM_COMPATIBLE
 #include <array>
 #include <vector>
 #include <string>
@@ -146,7 +146,7 @@ namespace heatninja2 {
 
     const std::array<float, 24>& select_temp_profile(const HeatOption hp_option, const std::array<float, 24>& hp_temp_profile, const std::array<float, 24>& erh_temp_profile);
 
-    float calculate_cop_worst(const HeatOption hp_option, const int hot_water_temp, const float coldest_outside_temp);
+    float calculate_cop_worst(const HeatOption hp_option, const int hot_water_temp, const float coldest_outside_temp, const float ground_temp);
 
     float calculate_hp_electrical_power(const HeatOption hp_option, const float max_hourly_erh_demand, const float max_hourly_hp_demand, const float cop_worst);
 

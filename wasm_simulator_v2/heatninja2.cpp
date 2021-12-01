@@ -576,8 +576,8 @@ namespace heatninja2 {
     void write_demand_data(const std::string filename, const float dwelling_thermal_transmittance, const float optimised_epc_demand, const float yearly_erh_demand, const float maximum_hourly_erh_demand, const float yearly_erh_space_demand, const float yearly_erh_hot_water_demand, const float yearly_hp_demand, const float maximum_hourly_hp_demand, const float yearly_hp_space_demand, const float yearly_hp_hot_water_demand) {
         std::ofstream file(filename);
         file << dwelling_thermal_transmittance << "," << optimised_epc_demand << "\n";
-        file << yearly_erh_demand << "," << maximum_hourly_erh_demand << yearly_erh_space_demand << "," << yearly_erh_hot_water_demand << "\n";
-        file << yearly_hp_demand << "," << maximum_hourly_hp_demand << yearly_hp_space_demand << "," << yearly_hp_hot_water_demand;
+        file << yearly_erh_demand << "," << maximum_hourly_erh_demand << "," << yearly_erh_space_demand << "," << yearly_erh_hot_water_demand << "\n";
+        file << yearly_hp_demand << "," << maximum_hourly_hp_demand << "," <<  yearly_hp_space_demand << "," << yearly_hp_hot_water_demand;
         file.close();
     }
 
@@ -621,7 +621,7 @@ namespace heatninja2 {
         }
     }
 
-    float calculate_cop_worst(const HeatOption hp_option, const int hot_water_temp, const float coldest_outside_temp) {
+    float calculate_cop_worst(const HeatOption hp_option, const int hot_water_temp, const float coldest_outside_temp, const float ground_temp) {
         switch (hp_option) // hp sources: A review of domestic heat pumps
         {
         case HeatOption::ERH:
@@ -629,7 +629,7 @@ namespace heatninja2 {
         case HeatOption::ASHP:
             return ax2bxc(0.000630f, -0.121f, 6.81f, hot_water_temp - coldest_outside_temp);
         default: //HeatOptions::GSHP
-            return ax2bxc(0.000734f, -0.150f, 8.77f, hot_water_temp - coldest_outside_temp);
+            return ax2bxc(0.000734f, -0.150f, 8.77f, hot_water_temp - ground_temp);
         }
     }
 
@@ -641,8 +641,10 @@ namespace heatninja2 {
         {
         case HeatOption::ERH:
             hp_electrical_power = max_hourly_erh_demand;
+            break;
         default: // ASHP or GSHP
             hp_electrical_power = max_hourly_hp_demand / cop_worst;
+            break;
         }
 
         if (hp_electrical_power * cop_worst < 4.0f) hp_electrical_power = 4.0f / cop_worst;
@@ -715,7 +717,7 @@ namespace heatninja2 {
     void simulate_heat_solar_combination(const HeatOption hp_option, const SolarOption solar_option, const int solar_maximum, const int tes_range, const float ground_temp, HeatSolarSystemSpecifications& optimal_spec, const std::array<float, 24>& erh_hourly_temperatures_over_day, const std::array<float, 24>& hp_hourly_temperatures_over_day, const int hot_water_temperature, const float coldest_outside_temperature_of_year, const float maximum_hourly_erh_demand, const float maximum_hourly_hp_demand, const float thermostat_temperature, const float cumulative_discount_rate, const std::array<float, 12>& monthly_solar_gain_ratios_north, const std::array<float, 12>& monthly_solar_gain_ratios_south, const std::array<float, 12>& monthly_cold_water_temperatures, const std::array<float, 12>& dhw_monthly_factors, const std::array<float, 12>& monthly_solar_declinations, const std::array<float, 12>& monthly_roof_ratios_south, const std::vector<float>& hourly_outside_temperatures_over_year, const std::vector<float>& hourly_solar_irradiances_over_year, const float u_value, const float heat_capacity, const std::vector<float>& agile_tariff_per_hour_over_year, const std::array<float, 24>& hot_water_hourly_ratios, const float average_daily_hot_water_volume, const int grid_emissions, const float solar_gain_house_factor, const float body_heat_gain, const float house_size_thermal_transmittance_product) {
 
         const std::array<float, 24>& temp_profile = select_temp_profile(hp_option, hp_hourly_temperatures_over_day, erh_hourly_temperatures_over_day);
-        const float cop_worst = calculate_cop_worst(hp_option, hot_water_temperature, coldest_outside_temperature_of_year);
+        const float cop_worst = calculate_cop_worst(hp_option, hot_water_temperature, coldest_outside_temperature_of_year, ground_temp);
         const float hp_electrical_power = calculate_hp_electrical_power(hp_option, maximum_hourly_erh_demand, maximum_hourly_hp_demand, cop_worst);
         const int solar_size_range = calculate_solar_size_range(solar_option, solar_maximum);
         float optimum_tes_npc = 3.40282e+038f;
@@ -1393,13 +1395,13 @@ namespace heatninja2 {
             const float solar_irradiance_current = hourly_solar_irradiances_over_year.at(hour_year_counter);
             calculate_inside_temp_change(inside_temp_current, outside_temp_current, solar_irradiance_current, ratio_sg_south, ratio_sg_north, ratio_roof_south, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product, heat_capacity);
             const auto [tes_upper_temperature, tes_lower_temperature, tes_thermocline_height] = calculate_tes_temp_and_thermocline_height(tes_state_of_charge, tes_charge_full, tes_charge_max, tes_charge_boost, cwt_current);
-
+            //std::cout << hour << " 1 " << inside_temp_current << '\n';
             const float tes_upper_losses = (tes_upper_temperature - inside_temp_current) * u_value * (pi_d2 * tes_thermocline_height + pi_r2); // losses in kWh
             const float tes_lower_losses = (tes_lower_temperature - inside_temp_current) * u_value * (pi_d2 * (1 - tes_thermocline_height) + pi_r2);
             const float total_losses = tes_upper_losses + tes_lower_losses;
             tes_state_of_charge -= total_losses;
             inside_temp_current += total_losses / heat_capacity;
-
+            //std::cout << hour << " 2 " << inside_temp_current << '\n';
             const float desired_min_temp_current = temp_profile->at(hour);
             const float agile_tariff_current = agile_tariff_per_hour_over_year.at(hour_year_counter);
             const float dhw_hr_current = hot_water_hourly_ratios.at(hour);
@@ -1419,7 +1421,7 @@ namespace heatninja2 {
             tes_state_of_charge = std::min(tes_state_of_charge, tes_charge_max);
 
             const float space_hr_demand = calculate_hourly_space_demand(inside_temp_current, desired_min_temp_current, cop_current, tes_state_of_charge, dhw_hr_demand, hp_electrical_power, heat_capacity);
-
+            //std::cout << hour << " 3 " << inside_temp_current << '\n';
             float electrical_demand_current = calculate_electrical_demand_for_heating(tes_state_of_charge, space_hr_demand + dhw_hr_demand, hp_electrical_power, cop_current);
             calculate_electrical_demand_for_tes_charging(electrical_demand_current, tes_state_of_charge, tes_charge_full, tariff, static_cast<int>(hour), hp_electrical_power, cop_current, agile_tariff_current);
             const float pv_remaining_current = pv_generation_current - electrical_demand_current;
