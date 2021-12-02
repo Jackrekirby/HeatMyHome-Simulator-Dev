@@ -599,7 +599,7 @@ namespace heatninja2 {
     }
 
     int calculate_tes_range(const float tes_volume_max) {
-        return static_cast<int>(tes_volume_max / 0.1f);
+        return static_cast<int>((tes_volume_max + 0.01f) / 0.1f); // +0.01f avoids floating point error
     }
 
     int calculate_solar_maximum(const float house_size) {
@@ -937,16 +937,16 @@ namespace heatninja2 {
             // Flat plate solar thermal
             // Technology Library for collector cost https://zenodo.org/record/4692649#.YQEbio5KjIV
             // Rest from https://www.sciencedirect.com/science/article/pii/S0306261915010958#b0310
-            return solar_thermal_size * (225 + 270 / (9 * 1.6f)) + 490 + 800 + 800;
+            return solar_thermal_size * (225.0f + 270.0f / (9.0f * 1.6f)) + 490.0f + 800.0f + 800.0f;
         case SolarOption::PVT:
             // https://www.sciencedirect.com/science/article/pii/S0306261915010958#b0310
-            return (solar_thermal_size / 1.6f) * (480 + 270 / 9) + 640 + 490 + 800 + 1440;
+            return (solar_thermal_size / 1.6f) * (480.0f + 270.0f / 9.0f) + 640.0f + 490.0f + 800.0f + 1440.0f;
         case SolarOption::ET:
         case SolarOption::ET_PV:
             // Evacuated tube solar thermal
             // Technology Library for collector cost https://zenodo.org/record/4692649#.YQEbio5KjIV
             // Rest from https://www.sciencedirect.com/science/article/pii/S0306261915010958#b0310
-            return solar_thermal_size * (280 + 270 / (9 * 1.6f)) + 490 + 800 + 800;
+            return solar_thermal_size * (280.0f + 270.0f / (9.0f * 1.6f)) + 490.0f + 800.0f + 800.0f;
         default:
             return 0;
         }
@@ -1014,6 +1014,8 @@ namespace heatninja2 {
             float operational_costs_peak = 0;
             float operational_costs_off_peak = 0;
             float operation_emissions = 0;
+
+            //(hp_option == HeatOption::ERH && solar_option == SolarOption::FP_PV && pv_size == 6 && solar_thermal_size == 8 && tes_volume_current == 0.2f)
 
             float tes_state_of_charge = tes_charge_full;  // kWh, for H2O, starts full to prevent initial demand spike
             // https ://www.sciencedirect.com/science/article/pii/S0306261916302045

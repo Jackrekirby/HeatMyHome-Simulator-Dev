@@ -51,9 +51,9 @@ exported_runtime_methods = ['ccall', 'cwrap']
 batch_file = 'archive\\call_empp.bat'
 
 # javascript file merge inputs
-js_merge_file = 'index.js'
-js_files = ['extra.js', web_file]
-just_js = True
+js_merge_file = 'worker.js'
+js_files = ['worker_linker.js', web_file]
+just_js = False
 
 # ____ AUTOMATED ________________________________________________________
 
