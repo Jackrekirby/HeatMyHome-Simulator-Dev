@@ -228,7 +228,7 @@ namespace heatninja2 {
         else if (latitude < 53.3f) { // Middle of England and Wales
             return { 12.9f, 13.3f, 14.4f, 16.3f, 17.7f, 19.7f, 21.8f, 20.1f, 20.3f, 17.8f, 15.3f, 14.0f };
         }
-        else if (latitude < 53.3f) { // North of England and Northern Ireland
+        else if (latitude < 54.95f) { // North of England and Northern Ireland
             return { 9.6f, 9.3f, 10.7f, 13.7f, 15.3f, 17.3f, 19.3f, 18.6f, 17.9f, 15.5f, 12.3f, 10.5f };
         }
         else { // Scotland
