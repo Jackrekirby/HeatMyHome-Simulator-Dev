@@ -2,6 +2,7 @@ import init, { run_simulation } from "./rust_simulator/pkg/rust_simulator.js";
 
 onmessage = async function (e) {
     //console.log('Message received from main script. Message: ', e);
+    console.log("rust worker alive");
     let start = performance.now();
     if (e.data[0] == "run simulation") {
         const result = await submit_simulation(e.data[1], e.data[2], Number(e.data[3]), Number(e.data[4]),
