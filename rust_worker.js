@@ -1,4 +1,4 @@
-import init, { run_simulation } from "/rust_simulator/pkg/rust_simulator.js";
+import init, { run_simulation } from "./rust_simulator/pkg/rust_simulator.js";
 
 onmessage = async function (e) {
     //console.log('Message received from main script. Message: ', e);
