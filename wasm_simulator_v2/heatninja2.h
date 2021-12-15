@@ -1,5 +1,5 @@
 #pragma once
-#define EM_COMPATIBLE
+//#define EM_COMPATIBLE
 #include <array>
 #include <vector>
 #include <string>

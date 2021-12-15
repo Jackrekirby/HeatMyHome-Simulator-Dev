@@ -1074,7 +1074,7 @@ void runSimulationWithDefaultParameters()
     std::string postcode = "CV4 7AL";
     int epc_space_heating = 3000;
     float house_size = 60.0f;
-    float tes_volume_max = 0.5f;
+    float tes_volume_max = 3.0f;
     float thermostat_temperature = 20.0f;
     const float latitude = 52.3833f;
     const float longitude = -1.5833f;
@@ -1084,7 +1084,7 @@ void runSimulationWithDefaultParameters()
     bool output_optimal_specs = true;
     bool output_all_specs = true;
     size_t output_file_index = 3;
-    bool use_multithreading = false;
+    bool use_multithreading = true;
     bool use_optimisation_surfaces = false;
 #else
     bool output_demand = false;

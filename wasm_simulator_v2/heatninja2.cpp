@@ -398,7 +398,7 @@ namespace heatninja2 {
                 { 5.2f, 5.0f, 5.8f, 7.6f, 9.7f, 11.8f, 13.4f, 13.6f, 12.1f, 9.6f, 7.3f, 5.2f },
                 { 4.4f, 4.2f, 5.0f, 7.0f, 8.9f, 11.2f, 13.1f, 13.2f, 11.7f, 9.1f, 6.6f, 4.3f },
                 { 4.6f, 4.1f, 4.7f, 6.5f, 8.3f, 10.5f, 12.4f, 12.8f, 11.4f, 8.8f, 6.5f, 4.6f },
-                { 4.8f, 5.2f, 6.4f, 10.9f, 13.5f, 15.0f, 14.9f, 13.1f, 10.0f, 7.2f, 4.7f }
+                { 4.8f, 5.2f, 6.4f, 8.4f, 10.9f, 13.5f, 15.0f, 14.9f, 13.1f, 10.0f, 7.2f, 4.7f }
         } };
         return monthly_epc_outside_temperatures_per_region.at(region_identifier);
     }
@@ -459,9 +459,9 @@ namespace heatninja2 {
 
             for (size_t days_in_month : days_in_months) {
                 const float outside_temperature_current = monthly_epc_outside_temperatures.at(month);
-                const int solar_irradiance_current = monthly_epc_solar_irradiances.at(month);
-                const float solar_height_factor = monthly_solar_height_factors.at(month);
-                const float solar_declination_current = monthly_solar_declinations.at(month);
+                //const int solar_irradiance_current = monthly_epc_solar_irradiances.at(month);
+                //const float solar_height_factor = monthly_solar_height_factors.at(month);
+                //const float solar_declination_current = monthly_solar_declinations.at(month);
                 const float solar_gain_south = monthly_solar_gains_south.at(month);
                 const float solar_gain_north = monthly_solar_gains_north.at(month);
 
@@ -487,7 +487,7 @@ namespace heatninja2 {
             const float epc_optimal_heating_demand_diff = std::abs(epc_space_heating - optimised_epc_demand);
             const float epc_heating_demand_diff = std::abs(epc_space_heating - epc_demand);
 
-            // std::cout << epc_space_heating << ' ' << optimised_epc_demand << ' ' << epc_demand << '\n';
+            //std::cout << epc_space_heating << ' ' << optimised_epc_demand << ' ' << epc_demand << '\n';
 
             if (epc_heating_demand_diff < epc_optimal_heating_demand_diff) {
                 optimised_epc_demand = epc_demand;

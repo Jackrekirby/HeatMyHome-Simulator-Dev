@@ -1,7 +1,8 @@
 if (window.Worker) {
     var myWorker = new Worker('worker.js');
+    var rustWorker = new Worker('rust_worker.js', { type: "module" });
     myWorker.postMessage("initiate");
-
+    rustWorker.postMessage("initiate");
     //console.log(`Last Updated: ${last_updated}`);
 } else {
     console.warn('Web Workers not supported');
@@ -10,12 +11,27 @@ if (window.Worker) {
 myWorker.onmessage = function (e) {
     //console.log('Message received from worker:', e);
     if (e.data[0] == "initiation complete") {
-        console.log('Worker Initiated');
+        console.log('C++ Worker Initiated');
         console.log('Last Updated:', e.data[1]);
     } else if (e.data[0] == "simulation complete") {
         let end = performance.now();
         let runtime = ((end - e.data[2]) / 1000.0).toPrecision(3);
-        console.log(`Simulation Runtime: ${runtime}s`);
+        console.log(`C++ Simulation Runtime: ${runtime}s`);
+        document.getElementById('sim-runtime').innerHTML = runtime;
+        renderSimTable(e.data[1]);
+    } else {
+        console.warn('Message from worker is not linked to any event: ', e.data);
+    }
+}
+
+rustWorker.onmessage = function (e) {
+    //console.log('Message received from worker:', e);
+    if (e.data[0] == "initiation complete") {
+        console.log('Rust Worker Initiated');
+    } else if (e.data[0] == "simulation complete") {
+        let end = performance.now();
+        let runtime = ((end - e.data[2]) / 1000.0).toPrecision(3);
+        console.log(`Rust Simulation Runtime: ${runtime}s`);
         document.getElementById('sim-runtime').innerHTML = runtime;
         renderSimTable(e.data[1]);
     } else {
@@ -135,14 +151,30 @@ function submitSimulation() {
     let space_heating = document.getElementById('sim-space-heating').value;
     let tes_max = document.getElementById('sim-tes-max').value;
     let use_surface_optimisation = document.getElementById('sim-surface-optimisation').checked;
+    let use_rust = document.getElementById('sim-use-rust').checked;
 
     document.getElementById('sim-runtime').innerHTML = '...';
     //console.log('asking worker to run simulation');
-    myWorker.postMessage(["run simulation", [postcode, latitude, longitude, occupants, floor_area, temperature, space_heating, tes_max, use_surface_optimisation]]);
+    if (use_rust) {
+        rustWorker.postMessage(["run simulation", postcode, latitude, longitude, occupants, floor_area, temperature, space_heating, tes_max]);
+    } else {
+        myWorker.postMessage(["run simulation", [postcode, latitude, longitude, occupants, floor_area, temperature, space_heating, tes_max, use_surface_optimisation]]);
+    }
     //console.log('sent message to worker');
 }
 
+document.getElementById('sim-use-rust').addEventListener('change', (event) => {
+    let use_rust = document.getElementById('sim-use-rust').checked;
+    if (use_rust) {
+        document.getElementById('sim-surface-optimisation').checked = false;
+        document.getElementById('sim-surface-optimisation').disabled = true;
+    } else {
+        document.getElementById('sim-surface-optimisation').disabled = false;
+    }
+});
+
 function renderSimTable(sim_string) {
+    console.log(sim_string);
     specslist = JSON.parse(sim_string);
     simtable = document.getElementById('sim-table');
 

@@ -1,9 +1,18 @@
 use arrayvec::ArrayVec;
-use std::fs::File;
-use std::io::{prelude::*, BufReader};
-use std::env;
 
-pub fn run_simulation(
+#[cfg(not(target_family = "wasm"))]
+use rayon::prelude::*;
+#[cfg(target_family = "wasm")]
+extern crate web_sys;
+// A macro to provide `println!(..)`-style syntax for `console.log` logging.
+#[cfg(target_family = "wasm")]
+macro_rules! println {
+    ( $( $t:tt )* ) => {
+        web_sys::console::log_1(&format!( $( $t )* ).into());
+    }
+}
+
+pub fn run_simulation (
     thermostat_temperature: f32,
     latitude: f32,
     longitude: f32,
@@ -12,7 +21,10 @@ pub fn run_simulation(
     postcode: String,
     epc_space_heating: f32,
     tes_volume_max: f32,
-) {
+    agile_tariff_per_hour_over_year: &[f32],
+    hourly_outside_temperatures_over_year: &[f32],
+    hourly_solar_irradiances_over_year: &[f32],
+) -> String {
     // input arguments:
     /*
         thermostat_temperature
@@ -72,9 +84,6 @@ pub fn run_simulation(
         heat_capacity,
         body_heat_gain
     */
-    let path = env::current_dir().expect("Could not locate current directory");
-    println!("The current directory is {}", path.display());
-    const ASSETS_DIR: &str = "assets/";
 
     let hourly_erh_thermostat_temperatures: [f32; 24] = {
         let a = thermostat_temperature;
@@ -149,32 +158,6 @@ pub fn run_simulation(
         0.025, 0.018, 0.011, 0.010, 0.008, 0.013, 0.017, 0.044, 0.088, 0.075, 0.060, 0.056, 0.050,
         0.043, 0.036, 0.029, 0.030, 0.036, 0.053, 0.074, 0.071, 0.059, 0.050, 0.041,
     ];
-
-    let import_weather_data = |filepath: String| -> [f32; 8760] {
-        println!("filepath: {}", filepath);
-        let file = File::open(filepath).expect("cannot read file.");
-        let reader = BufReader::new(file);
-        let mut data: [f32; 8760] = [0.0; 8760];
-        for (i, line) in reader.lines().enumerate() {
-            data[i] = line.unwrap().parse::<f32>().expect("string invalid float.");
-        }
-        data
-    };
-
-    let build_weather_file_path = |datatype: &str| -> String {
-        format!(
-            "{}{}/lat_{:.1}_lon_{:.1}.csv",
-            ASSETS_DIR,
-            datatype,
-            (latitude * 2.0).round() / 2.0,
-            (longitude * 2.0).round() / 2.0
-        )
-    };
-
-    let hourly_outside_temperatures_over_year: [f32; 8760] =
-        import_weather_data(build_weather_file_path("outside_temps"));
-    let hourly_solar_irradiances_over_year: [f32; 8760] =
-        import_weather_data(build_weather_file_path("solar_irradiances"));
 
     let daily_average_hot_water_volume = {
         let num_occupants: f32 = num_occupants as f32;
@@ -972,9 +955,7 @@ pub fn run_simulation(
         monthly_ratios_roof_south
     };
     let u_value: f32 = 1.30 / 1000.0; // 0.00130 kW / m2K linearised from https://zenodo.org/record/4692649#.YQEbio5KjIV&
-    #[allow(unused_variables)]
-    let agile_tariff_per_hour_over_year: [f32; 8760] =
-        import_weather_data(format!("{}agile_tariff.csv", ASSETS_DIR));
+
     let grid_emissions: f32 = 212.0;
 
     let print_vars = true;
@@ -1094,7 +1075,7 @@ pub fn run_simulation(
     }
 
     #[derive(Debug, Clone, Copy)]
-    struct SystemSpecifications {
+    struct SystemSpecification {
         heat_option: HeatOption,
         solar_option: SolarOption,
         pv_size: u16,
@@ -1131,7 +1112,7 @@ pub fn run_simulation(
         Tariff::OctopusAgile,
     ];
 
-    let init_specification = SystemSpecifications {
+    let init_specification = SystemSpecification {
         heat_option: HeatOption::ElectricResistanceHeating,
         solar_option: SolarOption::None,
         pv_size: 0,
@@ -1143,719 +1124,736 @@ pub fn run_simulation(
         net_present_cost: 0.0,
         operational_emissions: 0.0,
     };
+    let mut optimal_specifications: [SystemSpecification; 21] = [init_specification; 21];
+    for i in 0..21 {
+        optimal_specifications[i].heat_option = heat_options[i / 7];
+        optimal_specifications[i].solar_option = solar_options[i % 7];
+    }
 
-    let mut optimal_specifications: [SystemSpecifications; 21] = [init_specification; 21];
+    let simulate_heat_solar_combination = |optimal_specification: &mut SystemSpecification| {
+        let heat_option = optimal_specification.heat_option;
+        let solar_option = optimal_specification.solar_option;
+        //println!("{:?} {:?}", heat_option, solar_option);
+        let hourly_thermostat_temperatures: &[f32; 24] = match heat_option {
+            HeatOption::AirSourceHeatPump | HeatOption::GroundSourceHeatPump => {
+                &hourly_hp_thermostat_temperatures
+            }
+            HeatOption::ElectricResistanceHeating => &hourly_erh_thermostat_temperatures,
+        };
 
-    for heat_option in heat_options {
-        for solar_option in solar_options {
-            //println!("{:?} {:?}", heat_option, solar_option);
+        let cop_worst: f32 = match heat_option {
+            HeatOption::ElectricResistanceHeating => 1.0,
+            HeatOption::AirSourceHeatPump => ax2bxc(
+                0.000630,
+                -0.121,
+                6.81,
+                hot_water_temperature - coldest_outside_temperature_of_year,
+            ),
+            HeatOption::GroundSourceHeatPump => ax2bxc(
+                0.000734,
+                -0.150,
+                8.77,
+                hot_water_temperature - ground_temperature,
+            ),
+        };
 
-            let hourly_thermostat_temperatures: &[f32; 24] = match heat_option {
+        let hp_electrical_power: f32 = {
+            // Mitsubishi have 4kWth ASHP, Kensa have 3kWth GSHP
+            // 7kWth Typical maximum size for domestic power
+            let mut hp_electrical_power = match heat_option {
+                HeatOption::ElectricResistanceHeating => erh_max_hourly_demand,
                 HeatOption::AirSourceHeatPump | HeatOption::GroundSourceHeatPump => {
-                    &hourly_hp_thermostat_temperatures
+                    hp_max_hourly_demand / cop_worst
                 }
-                HeatOption::ElectricResistanceHeating => &hourly_erh_thermostat_temperatures,
             };
 
-            let cop_worst: f32 = match heat_option {
-                HeatOption::ElectricResistanceHeating => 1.0,
-                HeatOption::AirSourceHeatPump => ax2bxc(
-                    0.000630,
-                    -0.121,
-                    6.81,
-                    hot_water_temperature - coldest_outside_temperature_of_year,
-                ),
-                HeatOption::GroundSourceHeatPump => ax2bxc(
-                    0.000734,
-                    -0.150,
-                    8.77,
-                    hot_water_temperature - ground_temperature,
-                ),
+            if hp_electrical_power * cop_worst < 4.0 {
+                hp_electrical_power = 4.0 / cop_worst;
+            }
+            if hp_electrical_power > 7.0 {
+                hp_electrical_power = 7.0;
+            }
+            hp_electrical_power
+        };
+
+        let solar_size_range: u16 = match solar_option {
+            SolarOption::None => 1,
+            SolarOption::PhotoVoltaicsWithFlatPlate
+            | SolarOption::PhotoVoltaicsWithEvacuatedTube => solar_maximum / 2 - 1,
+            _ => solar_maximum / 2,
+        };
+
+        let mut min_net_present_cost: f32 = f32::MAX;
+
+        let mut find_optimal_specification = |optimal_specification: &mut SystemSpecification, solar_size: u16, tes_option: u8| -> f32 {
+            let solar_thermal_size: u16 = match solar_option {
+                SolarOption::None | SolarOption::PhotoVoltaics => 0,
+                _ => (solar_size * 2 + 2),
             };
 
-            let hp_electrical_power: f32 = {
-                // Mitsubishi have 4kWth ASHP, Kensa have 3kWth GSHP
-                // 7kWth Typical maximum size for domestic power
-                let mut hp_electrical_power = match heat_option {
-                    HeatOption::ElectricResistanceHeating => erh_max_hourly_demand,
-                    HeatOption::AirSourceHeatPump | HeatOption::GroundSourceHeatPump => {
-                        hp_max_hourly_demand / cop_worst
-                    }
-                };
-
-                if hp_electrical_power * cop_worst < 4.0 {
-                    hp_electrical_power = 4.0 / cop_worst;
+            let pv_size: u16 = match solar_option {
+                SolarOption::PhotoVoltaics | SolarOption::PhotoVoltaicThermalHybrid => {
+                    solar_size * 2 + 2
                 }
-                if hp_electrical_power > 7.0 {
-                    hp_electrical_power = 7.0;
-                }
-                hp_electrical_power
-            };
-
-            let solar_size_range: u16 = match solar_option {
-                SolarOption::None => 1,
                 SolarOption::PhotoVoltaicsWithFlatPlate
-                | SolarOption::PhotoVoltaicsWithEvacuatedTube => solar_maximum / 2 - 1,
-                _ => solar_maximum / 2,
+                | SolarOption::PhotoVoltaicsWithEvacuatedTube => {
+                    solar_maximum - solar_thermal_size
+                }
+                _ => 0,
             };
 
-            let mut min_net_present_cost: f32 = f32::MAX;
-
-            let mut find_optimal_specification = |solar_size: u16, tes_option: u8| -> f32 {
-                let solar_thermal_size: u16 = match solar_option {
-                    SolarOption::None | SolarOption::PhotoVoltaics => 0,
-                    _ => (solar_size * 2 + 2),
+            let tes_volume: f32 = 0.1 + (tes_option as f32) * 0.1; // m3
+            let hp_electrical_power_worst: f32 = hp_electrical_power * cop_worst;
+            let capital_expenditure: f32 = {
+                let capex_hp: f32 = match heat_option {
+                    HeatOption::ElectricResistanceHeating => 100.0, // Small additional cost to a TES, https://zenodo.org/record/4692649#.YQEbio5KjIV
+                    HeatOption::AirSourceHeatPump => {
+                        (200.0 + 4750.0 / hp_electrical_power_worst.powf(1.25))
+                            * hp_electrical_power_worst
+                            + 1500.0
+                    } // ASHP, https://pubs.rsc.org/en/content/articlepdf/2012/ee/c2ee22653g
+                    HeatOption::GroundSourceHeatPump => {
+                        (200.0 + 4750.0 / hp_electrical_power_worst.powf(1.25))
+                            * hp_electrical_power_worst
+                            + 800.0 * hp_electrical_power_worst
+                    } // GSHP, https://pubs.rsc.org/en/content/articlepdf/2012/ee/c2ee22653g
                 };
 
-                let pv_size: u16 = match solar_option {
-                    SolarOption::PhotoVoltaics | SolarOption::PhotoVoltaicThermalHybrid => {
-                        solar_size * 2 + 2
-                    }
-                    SolarOption::PhotoVoltaicsWithFlatPlate
+                let capex_pv: f32 = match solar_option {
+                    SolarOption::PhotoVoltaics
+                    | SolarOption::PhotoVoltaicsWithFlatPlate
                     | SolarOption::PhotoVoltaicsWithEvacuatedTube => {
-                        solar_maximum - solar_thermal_size
+                        // PV panels installed
+                        let pv_size = pv_size as f32;
+                        if pv_size * 0.2 < 4.0 {
+                            // Less than 4kWp
+                            pv_size * 0.2 * 1100.0 // m2 * 0.2kWp / m2 * £1100 / kWp = £
+                        } else {
+                            // Larger than 4kWp lower £ / kWp
+                            pv_size * 0.2 * 900.0 // m2 * 0.2kWp / m2 * £900 / kWp = £
+                        }
                     }
-                    _ => 0,
+                    _ => 0.0,
                 };
 
-                let tes_volume: f32 = 0.1 + (tes_option as f32) * 0.1; // m3
-                let hp_electrical_power_worst: f32 = hp_electrical_power * cop_worst;
-                let capital_expenditure: f32 = {
-                    let capex_hp: f32 = match heat_option {
-                        HeatOption::ElectricResistanceHeating => 100.0, // Small additional cost to a TES, https://zenodo.org/record/4692649#.YQEbio5KjIV
-                        HeatOption::AirSourceHeatPump => {
-                            (200.0 + 4750.0 / hp_electrical_power_worst.powf(1.25))
-                                * hp_electrical_power_worst
-                                + 1500.0
-                        } // ASHP, https://pubs.rsc.org/en/content/articlepdf/2012/ee/c2ee22653g
-                        HeatOption::GroundSourceHeatPump => {
-                            (200.0 + 4750.0 / hp_electrical_power_worst.powf(1.25))
-                                * hp_electrical_power_worst
-                                + 800.0 * hp_electrical_power_worst
-                        } // GSHP, https://pubs.rsc.org/en/content/articlepdf/2012/ee/c2ee22653g
-                    };
+                let capex_solar_thermal: f32 = match solar_option {
+                    // Flat plate solar thermal
+                    // Technology Library for collector cost https://zenodo.org/record/4692649#.YQEbio5KjIV
+                    // Rest from https://www.sciencedirect.com/science/article/pii/S0306261915010958#b0310
+                    SolarOption::FlatPlate | SolarOption::PhotoVoltaicsWithFlatPlate => {
+                        (solar_thermal_size as f32) * (225.0 + 270.0 / (9.0 * 1.6))
+                            + 490.0
+                            + 800.0
+                            + 800.0
+                    }
+                    // https://www.sciencedirect.com/science/article/pii/S0306261915010958#b0310
+                    SolarOption::PhotoVoltaicThermalHybrid => {
+                        ((solar_thermal_size as f32) / 1.6) * (480.0 + 270.0 / 9.0)
+                            + 640.0
+                            + 490.0
+                            + 800.0
+                            + 1440.0
+                    }
+                    // Evacuated tube solar thermal
+                    // Technology Library for collector cost https://zenodo.org/record/4692649#.YQEbio5KjIV
+                    // Rest from https://www.sciencedirect.com/science/article/pii/S0306261915010958#b0310
+                    SolarOption::EvacuatedTube
+                    | SolarOption::PhotoVoltaicsWithEvacuatedTube => {
+                        (solar_thermal_size as f32) * (280.0 + 270.0 / (9.0 * 1.6))
+                            + 490.0
+                            + 800.0
+                            + 800.0
+                    }
+                    _ => 0.0,
+                };
 
-                    let capex_pv: f32 = match solar_option {
-                        SolarOption::PhotoVoltaics
-                        | SolarOption::PhotoVoltaicsWithFlatPlate
-                        | SolarOption::PhotoVoltaicsWithEvacuatedTube => {
-                            // PV panels installed
-                            let pv_size = pv_size as f32;
-                            if pv_size * 0.2 < 4.0 {
-                                // Less than 4kWp
-                                pv_size * 0.2 * 1100.0 // m2 * 0.2kWp / m2 * £1100 / kWp = £
-                            } else {
-                                // Larger than 4kWp lower £ / kWp
-                                pv_size * 0.2 * 900.0 // m2 * 0.2kWp / m2 * £900 / kWp = £
+                // Formula based on this data https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/545249/DELTA_EE_DECC_TES_Final__1_.pdf
+                let capex_tes = 2068.3 * tes_volume.powf(0.553);
+
+                capex_hp + capex_pv + capex_solar_thermal + capex_tes
+            };
+
+            let tes_radius: f32 = (tes_volume / (2.0 * std::f32::consts::PI)).powf(1.0 / 3.0); //For cylinder with height = 2x radius
+            let tes_charge_full: f32 =
+                tes_volume * 1000.0 * 4.18 * (hot_water_temperature - 40.0) / 3600.0; // 40 min temp
+            let tes_charge_boost: f32 = tes_volume * 1000.0 * 4.18 * (60.0 - 40.0) / 3600.0; //  # kWh, 60C HP with PV boost
+            let tes_charge_max: f32 = tes_volume * 1000.0 * 4.18 * (95.0 - 40.0) / 3600.0;
+            //  # kWh, 95C electric and solar
+
+            let tes_charge_min: f32 = 10.0 * 4.18 * (hot_water_temperature - 10.0) / 3600.0;
+            // 10litres hot min amount
+            //CWT coming in from DHW re - fill, accounted for by DHW energy out, DHW min useful temperature 40°C
+            //Space heating return temperature would also be ~40°C with flow at 51°C
+
+            let pi_d: f32 = std::f32::consts::PI * tes_radius * 2.0;
+            let pi_r2: f32 = std::f32::consts::PI * tes_radius * tes_radius;
+            let pi_d2: f32 = pi_d * tes_radius * 2.0;
+
+            let mut min_tariff_net_present_cost: f32 = f32::MAX;
+
+            for tariff in tariffs {
+                let mut inside_temperature: f32 = thermostat_temperature;
+                //let mut solar_thermal_generation_total: f32 = 0.0;
+                let mut operational_costs_peak: f32 = 0.0;
+                let mut operational_costs_off_peak: f32 = 0.0;
+                let mut operational_emissions: f32 = 0.0;
+                let mut tes_state_of_charge: f32 = tes_charge_full;
+                // kWh, for H2O, starts full to prevent initial demand spike
+                // https ://www.sciencedirect.com/science/article/pii/S0306261916302045
+                let mut hour_year_counter: usize = 0;
+
+                for (month, days_in_month) in DAYS_IN_MONTHS.iter().enumerate() {
+                    let monthly_solar_gain_ratio_south: f32 =
+                        monthly_solar_gain_ratios_south[month];
+                    let monthly_solar_gain_ratio_north: f32 =
+                        monthly_solar_gain_ratios_north[month];
+                    let monthly_cold_water_temperature: f32 =
+                        monthly_cold_water_temperatures[month];
+                    let monthly_hot_water_factor: f32 = monthly_hot_water_factors[month];
+                    // let solar_declination: f32 = monthly_solar_declinations[month];
+                    let ratio_roof_south: f32 = monthly_roof_ratios_south[month];
+                    for _day in 0..*days_in_month {
+                        for hour in 0..24 {
+                            let outside_temperature =
+                                hourly_outside_temperatures_over_year[hour_year_counter];
+                            let solar_irradiance =
+                                hourly_solar_irradiances_over_year[hour_year_counter];
+                            {
+                                let solar_gain_south = solar_irradiance
+                                    * monthly_solar_gain_ratio_south
+                                    * solar_gain_house_factor;
+                                let solar_gain_north = solar_irradiance
+                                    * monthly_solar_gain_ratio_north
+                                    * solar_gain_house_factor;
+                                let heat_loss = house_size_thermal_transmittance_product
+                                    * (inside_temperature - outside_temperature);
+                                // heat_flow_out in kWh, +ve means heat flows out of building, -ve heat flows into building
+                                inside_temperature += (-heat_loss
+                                    + solar_gain_south
+                                    + solar_gain_north
+                                    + body_heat_gain)
+                                    / heat_capacity;
                             }
-                        }
-                        _ => 0.0,
-                    };
 
-                    let capex_solar_thermal: f32 = match solar_option {
-                        // Flat plate solar thermal
-                        // Technology Library for collector cost https://zenodo.org/record/4692649#.YQEbio5KjIV
-                        // Rest from https://www.sciencedirect.com/science/article/pii/S0306261915010958#b0310
-                        SolarOption::FlatPlate | SolarOption::PhotoVoltaicsWithFlatPlate => {
-                            (solar_thermal_size as f32) * (225.0 + 270.0 / (9.0 * 1.6))
-                                + 490.0
-                                + 800.0
-                                + 800.0
-                        }
-                        // https://www.sciencedirect.com/science/article/pii/S0306261915010958#b0310
-                        SolarOption::PhotoVoltaicThermalHybrid => {
-                            ((solar_thermal_size as f32) / 1.6) * (480.0 + 270.0 / 9.0)
-                                + 640.0
-                                + 490.0
-                                + 800.0
-                                + 1440.0
-                        }
-                        // Evacuated tube solar thermal
-                        // Technology Library for collector cost https://zenodo.org/record/4692649#.YQEbio5KjIV
-                        // Rest from https://www.sciencedirect.com/science/article/pii/S0306261915010958#b0310
-                        SolarOption::EvacuatedTube
-                        | SolarOption::PhotoVoltaicsWithEvacuatedTube => {
-                            (solar_thermal_size as f32) * (280.0 + 270.0 / (9.0 * 1.6))
-                                + 490.0
-                                + 800.0
-                                + 800.0
-                        }
-                        _ => 0.0,
-                    };
+                            let (
+                                tes_upper_temperature,
+                                tes_lower_temperature,
+                                tes_thermocline_height,
+                            ): (f32, f32, f32) = match tes_state_of_charge {
+                                // Currently at nominal temperature ranges
+                                // tes_lower_temperature Bottom of the tank would still be at CWT,
+                                // tes_thermocline_height %, from top down, .25 is top 25 %
+                                x if x <= tes_charge_full => (
+                                    51.0,
+                                    monthly_cold_water_temperature,
+                                    tes_state_of_charge / tes_charge_full,
+                                ),
+                                x if x <= tes_charge_boost => (
+                                    60.0,
+                                    51.0,
+                                    (tes_state_of_charge - tes_charge_full)
+                                        / (tes_charge_boost - tes_charge_full),
+                                ),
+                                // At max tes temperature
+                                _ => (
+                                    95.0,
+                                    60.0,
+                                    (tes_state_of_charge - tes_charge_boost)
+                                        / (tes_charge_max - tes_charge_boost),
+                                ),
+                            };
 
-                    // Formula based on this data https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/545249/DELTA_EE_DECC_TES_Final__1_.pdf
-                    let capex_tes = 2068.3 * tes_volume.powf(0.553);
+                            let tes_upper_losses: f32 = (tes_upper_temperature
+                                - inside_temperature)
+                                * u_value
+                                * (pi_d2 * tes_thermocline_height + pi_r2); // losses in kWh
+                            let tes_lower_losses: f32 = (tes_lower_temperature
+                                - inside_temperature)
+                                * u_value
+                                * (pi_d2 * (1.0 - tes_thermocline_height) + pi_r2);
+                            let total_losses: f32 = tes_upper_losses + tes_lower_losses;
+                            tes_state_of_charge -= total_losses;
+                            inside_temperature += total_losses / heat_capacity;
 
-                    capex_hp + capex_pv + capex_solar_thermal + capex_tes
-                };
+                            let hourly_thermostat_temperature: f32 =
+                                hourly_thermostat_temperatures[hour];
 
-                let tes_radius: f32 = (tes_volume / (2.0 * std::f32::consts::PI)).powf(1.0 / 3.0); //For cylinder with height = 2x radius
-                let tes_charge_full: f32 =
-                    tes_volume * 1000.0 * 4.18 * (hot_water_temperature - 40.0) / 3600.0; // 40 min temp
-                let tes_charge_boost: f32 = tes_volume * 1000.0 * 4.18 * (60.0 - 40.0) / 3600.0; //  # kWh, 60C HP with PV boost
-                let tes_charge_max: f32 = tes_volume * 1000.0 * 4.18 * (95.0 - 40.0) / 3600.0;
-                //  # kWh, 95C electric and solar
+                            let agile_tariff_current: f32 =
+                                agile_tariff_per_hour_over_year[hour_year_counter];
+                            let hourly_hot_water_ratio: f32 = hourly_hot_water_ratios[hour];
+                            let hourly_hot_water_demand: f32 = (daily_average_hot_water_volume
+                                * 4.18
+                                * (hot_water_temperature - monthly_cold_water_temperature)
+                                / 3600.0)
+                                * monthly_hot_water_factor
+                                * hourly_hot_water_ratio;
 
-                let tes_charge_min: f32 = 10.0 * 4.18 * (hot_water_temperature - 10.0) / 3600.0;
-                // 10litres hot min amount
-                //CWT coming in from DHW re - fill, accounted for by DHW energy out, DHW min useful temperature 40°C
-                //Space heating return temperature would also be ~40°C with flow at 51°C
+                            let (cop_current, cop_boost): (f32, f32) = match heat_option {
+                                HeatOption::ElectricResistanceHeating => (1.0, 1.0),
+                                // ASHP, source A review of domestic heat pumps
+                                HeatOption::AirSourceHeatPump => (
+                                    ax2bxc(
+                                        0.00063,
+                                        -0.121,
+                                        6.81,
+                                        hot_water_temperature - outside_temperature,
+                                    ),
+                                    ax2bxc(0.00063, -0.121, 6.81, 60.0 - outside_temperature),
+                                ),
+                                // GSHP, source A review of domestic heat pumps
+                                HeatOption::GroundSourceHeatPump => (
+                                    ax2bxc(
+                                        0.000734,
+                                        -0.150,
+                                        8.77,
+                                        hot_water_temperature - ground_temperature,
+                                    ),
+                                    ax2bxc(0.000734, -0.150, 8.77, 60.0 - ground_temperature),
+                                ),
+                            };
 
-                let pi_d: f32 = std::f32::consts::PI * tes_radius * 2.0;
-                let pi_r2: f32 = std::f32::consts::PI * tes_radius * tes_radius;
-                let pi_d2: f32 = pi_d * tes_radius * 2.0;
-
-                let mut min_tariff_net_present_cost: f32 = f32::MAX;
-
-                for tariff in tariffs {
-                    let mut inside_temperature: f32 = thermostat_temperature;
-                    //let mut solar_thermal_generation_total: f32 = 0.0;
-                    let mut operational_costs_peak: f32 = 0.0;
-                    let mut operational_costs_off_peak: f32 = 0.0;
-                    let mut operational_emissions: f32 = 0.0;
-                    let mut tes_state_of_charge: f32 = tes_charge_full;
-                    // kWh, for H2O, starts full to prevent initial demand spike
-                    // https ://www.sciencedirect.com/science/article/pii/S0306261916302045
-                    let mut hour_year_counter: usize = 0;
-
-                    for (month, days_in_month) in DAYS_IN_MONTHS.iter().enumerate() {
-                        let monthly_solar_gain_ratio_south: f32 =
-                            monthly_solar_gain_ratios_south[month];
-                        let monthly_solar_gain_ratio_north: f32 =
-                            monthly_solar_gain_ratios_north[month];
-                        let monthly_cold_water_temperature: f32 =
-                            monthly_cold_water_temperatures[month];
-                        let monthly_hot_water_factor: f32 = monthly_hot_water_factors[month];
-                        // let solar_declination: f32 = monthly_solar_declinations[month];
-                        let ratio_roof_south: f32 = monthly_roof_ratios_south[month];
-                        for _day in 0..*days_in_month {
-                            for hour in 0..24 {
-                                let outside_temperature =
-                                    hourly_outside_temperatures_over_year[hour_year_counter];
-                                let solar_irradiance =
-                                    hourly_solar_irradiances_over_year[hour_year_counter];
-                                {
-                                    let solar_gain_south = solar_irradiance
-                                        * monthly_solar_gain_ratio_south
-                                        * solar_gain_house_factor;
-                                    let solar_gain_north = solar_irradiance
-                                        * monthly_solar_gain_ratio_north
-                                        * solar_gain_house_factor;
-                                    let heat_loss = house_size_thermal_transmittance_product
-                                        * (inside_temperature - outside_temperature);
-                                    // heat_flow_out in kWh, +ve means heat flows out of building, -ve heat flows into building
-                                    inside_temperature += (-heat_loss
-                                        + solar_gain_south
-                                        + solar_gain_north
-                                        + body_heat_gain)
-                                        / heat_capacity;
+                            let pv_efficiency: f32 = match solar_option {
+                                // https://www.sciencedirect.com/science/article/pii/S0306261919313443#b0175
+                                SolarOption::PhotoVoltaicThermalHybrid => {
+                                    (14.7
+                                        * (1.0
+                                            - 0.0045
+                                                * ((tes_upper_temperature
+                                                    + tes_lower_temperature)
+                                                    / 2.0
+                                                    - 25.0)))
+                                        / 100.0
                                 }
+                                // Technology Library https://zenodo.org/record/4692649#.YQEbio5KjIV
+                                // monocrystalline used for domestic
+                                _ => 0.1928,
+                            };
 
-                                let (
-                                    tes_upper_temperature,
-                                    tes_lower_temperature,
-                                    tes_thermocline_height,
-                                ): (f32, f32, f32) = match tes_state_of_charge {
-                                    // Currently at nominal temperature ranges
-                                    // tes_lower_temperature Bottom of the tank would still be at CWT,
-                                    // tes_thermocline_height %, from top down, .25 is top 25 %
-                                    x if x <= tes_charge_full => (
-                                        51.0,
-                                        monthly_cold_water_temperature,
-                                        tes_state_of_charge / tes_charge_full,
-                                    ),
-                                    x if x <= tes_charge_boost => (
-                                        60.0,
-                                        51.0,
-                                        (tes_state_of_charge - tes_charge_full)
-                                            / (tes_charge_boost - tes_charge_full),
-                                    ),
-                                    // At max tes temperature
-                                    _ => (
-                                        95.0,
-                                        60.0,
-                                        (tes_state_of_charge - tes_charge_boost)
-                                            / (tes_charge_max - tes_charge_boost),
-                                    ),
-                                };
+                            let incident_irradiance_roof_south: f32 =
+                                solar_irradiance * ratio_roof_south / 1000.0; // kW / m2
+                            let pv_generation = (pv_size as f32)
+                                * pv_efficiency
+                                * incident_irradiance_roof_south
+                                * 0.8; // 80 % shading factor
 
-                                let tes_upper_losses: f32 = (tes_upper_temperature
-                                    - inside_temperature)
-                                    * u_value
-                                    * (pi_d2 * tes_thermocline_height + pi_r2); // losses in kWh
-                                let tes_lower_losses: f32 = (tes_lower_temperature
-                                    - inside_temperature)
-                                    * u_value
-                                    * (pi_d2 * (1.0 - tes_thermocline_height) + pi_r2);
-                                let total_losses: f32 = tes_upper_losses + tes_lower_losses;
-                                tes_state_of_charge -= total_losses;
-                                inside_temperature += total_losses / heat_capacity;
+                            let solar_thermal_generation: f32 = match solar_option {
+                                SolarOption::None | SolarOption::PhotoVoltaics => 0.0,
+                                _ => {
+                                    if incident_irradiance_roof_south == 0.0 {
+                                        0.0
+                                    } else {
+                                        let solar_thermal_collector_temperature: f32 =
+                                            (tes_upper_temperature + tes_lower_temperature)
+                                                / 2.0;
+                                        // Collector to heat from tes lower temperature to tes upper temperature, so use the average temperature
 
-                                let hourly_thermostat_temperature: f32 =
-                                    hourly_thermostat_temperatures[hour];
-
-                                let agile_tariff_current: f32 =
-                                    agile_tariff_per_hour_over_year[hour_year_counter];
-                                let hourly_hot_water_ratio: f32 = hourly_hot_water_ratios[hour];
-                                let hourly_hot_water_demand: f32 = (daily_average_hot_water_volume
-                                    * 4.18
-                                    * (hot_water_temperature - monthly_cold_water_temperature)
-                                    / 3600.0)
-                                    * monthly_hot_water_factor
-                                    * hourly_hot_water_ratio;
-
-                                let (cop_current, cop_boost): (f32, f32) = match heat_option {
-                                    HeatOption::ElectricResistanceHeating => (1.0, 1.0),
-                                    // ASHP, source A review of domestic heat pumps
-                                    HeatOption::AirSourceHeatPump => (
-                                        ax2bxc(
-                                            0.00063,
-                                            -0.121,
-                                            6.81,
-                                            hot_water_temperature - outside_temperature,
-                                        ),
-                                        ax2bxc(0.00063, -0.121, 6.81, 60.0 - outside_temperature),
-                                    ),
-                                    // GSHP, source A review of domestic heat pumps
-                                    HeatOption::GroundSourceHeatPump => (
-                                        ax2bxc(
-                                            0.000734,
-                                            -0.150,
-                                            8.77,
-                                            hot_water_temperature - ground_temperature,
-                                        ),
-                                        ax2bxc(0.000734, -0.150, 8.77, 60.0 - ground_temperature),
-                                    ),
-                                };
-
-                                let pv_efficiency: f32 = match solar_option {
-                                    // https://www.sciencedirect.com/science/article/pii/S0306261919313443#b0175
-                                    SolarOption::PhotoVoltaicThermalHybrid => {
-                                        (14.7
-                                            * (1.0
-                                                - 0.0045
-                                                    * ((tes_upper_temperature
-                                                        + tes_lower_temperature)
-                                                        / 2.0
-                                                        - 25.0)))
-                                            / 100.0
-                                    }
-                                    // Technology Library https://zenodo.org/record/4692649#.YQEbio5KjIV
-                                    // monocrystalline used for domestic
-                                    _ => 0.1928,
-                                };
-
-                                let incident_irradiance_roof_south: f32 =
-                                    solar_irradiance * ratio_roof_south / 1000.0; // kW / m2
-                                let pv_generation = (pv_size as f32)
-                                    * pv_efficiency
-                                    * incident_irradiance_roof_south
-                                    * 0.8; // 80 % shading factor
-
-                                let solar_thermal_generation: f32 = match solar_option {
-                                    SolarOption::None | SolarOption::PhotoVoltaics => 0.0,
-                                    _ => {
-                                        if incident_irradiance_roof_south == 0.0 {
+                                        let (a, b, c): (f32, f32, f32) = match solar_option {
+                                            // https://www.sciencedirect.com/science/article/pii/B9781782422136000023
+                                            SolarOption::FlatPlate
+                                            | SolarOption::PhotoVoltaicsWithFlatPlate => {
+                                                (-0.000038, -0.0035, 0.78)
+                                            }
+                                            // https://www.sciencedirect.com/science/article/pii/S0306261919313443#b0175
+                                            SolarOption::PhotoVoltaicThermalHybrid => {
+                                                (-0.0000176, -0.003325, 0.726)
+                                            }
+                                            // https://www.sciencedirect.com/science/article/pii/B9781782422136000023
+                                            SolarOption::EvacuatedTube
+                                            | SolarOption::PhotoVoltaicsWithEvacuatedTube => {
+                                                (-0.00002, -0.0009, 0.625)
+                                            }
+                                            _ => panic!(
+                                                "No other solar option should be possible"
+                                            ),
+                                        };
+                                        let solar_thermal_generation = 0.8
+                                            * (solar_thermal_size as f32)
+                                            * ax2bxc(
+                                                a,
+                                                b,
+                                                c * incident_irradiance_roof_south,
+                                                solar_thermal_collector_temperature
+                                                    - outside_temperature,
+                                            );
+                                        if solar_thermal_generation < 0.0 {
                                             0.0
                                         } else {
-                                            let solar_thermal_collector_temperature: f32 =
-                                                (tes_upper_temperature + tes_lower_temperature)
-                                                    / 2.0;
-                                            // Collector to heat from tes lower temperature to tes upper temperature, so use the average temperature
-
-                                            let (a, b, c): (f32, f32, f32) = match solar_option {
-                                                // https://www.sciencedirect.com/science/article/pii/B9781782422136000023
-                                                SolarOption::FlatPlate
-                                                | SolarOption::PhotoVoltaicsWithFlatPlate => {
-                                                    (-0.000038, -0.0035, 0.78)
-                                                }
-                                                // https://www.sciencedirect.com/science/article/pii/S0306261919313443#b0175
-                                                SolarOption::PhotoVoltaicThermalHybrid => {
-                                                    (-0.0000176, -0.003325, 0.726)
-                                                }
-                                                // https://www.sciencedirect.com/science/article/pii/B9781782422136000023
-                                                SolarOption::EvacuatedTube
-                                                | SolarOption::PhotoVoltaicsWithEvacuatedTube => {
-                                                    (-0.00002, -0.0009, 0.625)
-                                                }
-                                                _ => panic!(
-                                                    "No other solar option should be possible"
-                                                ),
-                                            };
-                                            let solar_thermal_generation = 0.8
-                                                * (solar_thermal_size as f32)
-                                                * ax2bxc(
-                                                    a,
-                                                    b,
-                                                    c * incident_irradiance_roof_south,
-                                                    solar_thermal_collector_temperature
-                                                        - outside_temperature,
-                                                );
-                                            if solar_thermal_generation < 0.0 {
-                                                0.0
-                                            } else {
-                                                solar_thermal_generation
-                                            }
+                                            solar_thermal_generation
                                         }
                                     }
-                                };
+                                }
+                            };
 
-                                tes_state_of_charge += solar_thermal_generation;
-                                //solar_thermal_generation_total += solar_thermal_generation;
-                                // Dumps any excess solar generated heat to prevent boiling TES
-                                tes_state_of_charge = if tes_state_of_charge < tes_charge_max {
-                                    tes_state_of_charge
+                            tes_state_of_charge += solar_thermal_generation;
+                            //solar_thermal_generation_total += solar_thermal_generation;
+                            // Dumps any excess solar generated heat to prevent boiling TES
+                            tes_state_of_charge = if tes_state_of_charge < tes_charge_max {
+                                tes_state_of_charge
+                            } else {
+                                tes_charge_max
+                            };
+
+                            let hourly_space_demand: f32 = {
+                                if inside_temperature > hourly_thermostat_temperature {
+                                    0.0
                                 } else {
-                                    tes_charge_max
-                                };
-
-                                let hourly_space_demand: f32 = {
-                                    if inside_temperature > hourly_thermostat_temperature {
-                                        0.0
-                                    } else {
-                                        let hourly_space_demand = (hourly_thermostat_temperature
-                                            - inside_temperature)
-                                            * heat_capacity;
-                                        if (hourly_space_demand + hourly_hot_water_demand)
-                                            < (tes_state_of_charge
-                                                + hp_electrical_power * cop_current)
-                                        {
-                                            inside_temperature = hourly_thermostat_temperature;
-                                            hourly_space_demand
-                                        } else {
-                                            if tes_state_of_charge > 0.0 {
-                                                // Priority to space demand over TES charging
-                                                let space_hr_demand = (tes_state_of_charge
-                                                    + hp_electrical_power * cop_current)
-                                                    - hourly_hot_water_demand;
-                                                inside_temperature +=
-                                                    space_hr_demand / heat_capacity;
-                                                space_hr_demand
-                                            } else {
-                                                let space_hr_demand = (hp_electrical_power
-                                                    * cop_current)
-                                                    - hourly_hot_water_demand;
-                                                inside_temperature +=
-                                                    space_hr_demand / heat_capacity;
-                                                space_hr_demand
-                                            }
-                                        }
-                                    }
-                                };
-
-                                let mut electrical_demand: f32 = {
-                                    let space_water_demand =
-                                        hourly_space_demand + hourly_hot_water_demand;
-                                    if space_water_demand < tes_state_of_charge {
-                                        // TES can provide all demand
-                                        tes_state_of_charge -= space_water_demand;
-                                        0.0
-                                    } else if space_water_demand
-                                        < (tes_state_of_charge + hp_electrical_power * cop_current)
+                                    let hourly_space_demand = (hourly_thermostat_temperature
+                                        - inside_temperature)
+                                        * heat_capacity;
+                                    if (hourly_space_demand + hourly_hot_water_demand)
+                                        < (tes_state_of_charge
+                                            + hp_electrical_power * cop_current)
                                     {
-                                        if tes_state_of_charge > 0.0 {
-                                            let electrical_demand = (space_water_demand
-                                                - tes_state_of_charge)
-                                                / cop_current;
-                                            tes_state_of_charge = 0.0; // TES needs support so taken to empty if it had any charge
-                                            electrical_demand
-                                        } else {
-                                            space_water_demand / cop_current
-                                        }
+                                        inside_temperature = hourly_thermostat_temperature;
+                                        hourly_space_demand
                                     } else {
-                                        // TES and HP can't meet hour demand
                                         if tes_state_of_charge > 0.0 {
-                                            tes_state_of_charge = 0.0;
+                                            // Priority to space demand over TES charging
+                                            let space_hr_demand = (tes_state_of_charge
+                                                + hp_electrical_power * cop_current)
+                                                - hourly_hot_water_demand;
+                                            inside_temperature +=
+                                                space_hr_demand / heat_capacity;
+                                            space_hr_demand
+                                        } else {
+                                            let space_hr_demand = (hp_electrical_power
+                                                * cop_current)
+                                                - hourly_hot_water_demand;
+                                            inside_temperature +=
+                                                space_hr_demand / heat_capacity;
+                                            space_hr_demand
                                         }
-                                        hp_electrical_power
                                     }
-                                };
+                                }
+                            };
 
-                                // calculate_electrical_demand_for_tes_charging
-                                if tes_state_of_charge < tes_charge_full
-                                    && ((matches!(tariff, Tariff::FlatRate)
+                            let mut electrical_demand: f32 = {
+                                let space_water_demand =
+                                    hourly_space_demand + hourly_hot_water_demand;
+                                if space_water_demand < tes_state_of_charge {
+                                    // TES can provide all demand
+                                    tes_state_of_charge -= space_water_demand;
+                                    0.0
+                                } else if space_water_demand
+                                    < (tes_state_of_charge + hp_electrical_power * cop_current)
+                                {
+                                    if tes_state_of_charge > 0.0 {
+                                        let electrical_demand = (space_water_demand
+                                            - tes_state_of_charge)
+                                            / cop_current;
+                                        tes_state_of_charge = 0.0; // TES needs support so taken to empty if it had any charge
+                                        electrical_demand
+                                    } else {
+                                        space_water_demand / cop_current
+                                    }
+                                } else {
+                                    // TES and HP can't meet hour demand
+                                    if tes_state_of_charge > 0.0 {
+                                        tes_state_of_charge = 0.0;
+                                    }
+                                    hp_electrical_power
+                                }
+                            };
+
+                            // calculate_electrical_demand_for_tes_charging
+                            if tes_state_of_charge < tes_charge_full
+                                && ((matches!(tariff, Tariff::FlatRate)
+                                    && 12 < hour
+                                    && hour < 16)
+                                    || (matches!(tariff, Tariff::Economy7)
+                                        && (hour == 23 || hour < 6))
+                                    || (matches!(tariff, Tariff::BulbSmart)
                                         && 12 < hour
                                         && hour < 16)
-                                        || (matches!(tariff, Tariff::Economy7)
-                                            && (hour == 23 || hour < 6))
-                                        || (matches!(tariff, Tariff::BulbSmart)
-                                            && 12 < hour
-                                            && hour < 16)
-                                        || (matches!(tariff, Tariff::OctopusGo) && hour < 5)
-                                        || (matches!(tariff, Tariff::OctopusAgile)
-                                            && agile_tariff_current < 9.0))
+                                    || (matches!(tariff, Tariff::OctopusGo) && hour < 5)
+                                    || (matches!(tariff, Tariff::OctopusAgile)
+                                        && agile_tariff_current < 9.0))
+                            {
+                                // Flat rate and smart tariff charges TES at typical day peak air temperature times
+                                // GSHP is not affected so can keep to these times too
+                                if (tes_charge_full - tes_state_of_charge)
+                                    < ((hp_electrical_power - electrical_demand) * cop_current)
                                 {
-                                    // Flat rate and smart tariff charges TES at typical day peak air temperature times
-                                    // GSHP is not affected so can keep to these times too
-                                    if (tes_charge_full - tes_state_of_charge)
-                                        < ((hp_electrical_power - electrical_demand) * cop_current)
+                                    // Small top up
+                                    electrical_demand +=
+                                        (tes_charge_full - tes_state_of_charge) / cop_current;
+                                    tes_state_of_charge = tes_charge_full;
+                                } else {
+                                    // HP can not fully top up in one hour
+                                    tes_state_of_charge +=
+                                        (hp_electrical_power - electrical_demand) * cop_current;
+                                    electrical_demand = hp_electrical_power;
+                                }
+                            }
+
+                            {
+                                // Boost temperature if any spare PV generated electricity, as reduced cop, raises to nominal temp above first
+                                let pv_remaining: f32 = pv_generation - electrical_demand;
+                                let tes_boost_charge_difference: f32 =
+                                    tes_charge_boost - tes_state_of_charge;
+                                if pv_remaining > 0.0 && tes_boost_charge_difference > 0.0 {
+                                    if (tes_boost_charge_difference
+                                        < (pv_remaining * cop_boost))
+                                        && (tes_boost_charge_difference
+                                            < ((hp_electrical_power - electrical_demand)
+                                                * cop_boost))
                                     {
-                                        // Small top up
                                         electrical_demand +=
-                                            (tes_charge_full - tes_state_of_charge) / cop_current;
-                                        tes_state_of_charge = tes_charge_full;
+                                            tes_boost_charge_difference / cop_boost;
+                                        tes_state_of_charge = tes_charge_boost;
+                                    } else if pv_remaining < hp_electrical_power {
+                                        tes_state_of_charge += pv_remaining * cop_boost;
+                                        electrical_demand += pv_remaining;
                                     } else {
-                                        // HP can not fully top up in one hour
-                                        tes_state_of_charge +=
-                                            (hp_electrical_power - electrical_demand) * cop_current;
+                                        tes_state_of_charge += (hp_electrical_power
+                                            - electrical_demand)
+                                            * cop_boost;
                                         electrical_demand = hp_electrical_power;
                                     }
                                 }
-
-                                {
-                                    // Boost temperature if any spare PV generated electricity, as reduced cop, raises to nominal temp above first
-                                    let pv_remaining: f32 = pv_generation - electrical_demand;
-                                    let tes_boost_charge_difference: f32 =
-                                        tes_charge_boost - tes_state_of_charge;
-                                    if pv_remaining > 0.0 && tes_boost_charge_difference > 0.0 {
-                                        if (tes_boost_charge_difference
-                                            < (pv_remaining * cop_boost))
-                                            && (tes_boost_charge_difference
-                                                < ((hp_electrical_power - electrical_demand)
-                                                    * cop_boost))
-                                        {
-                                            electrical_demand +=
-                                                tes_boost_charge_difference / cop_boost;
-                                            tes_state_of_charge = tes_charge_boost;
-                                        } else if pv_remaining < hp_electrical_power {
-                                            tes_state_of_charge += pv_remaining * cop_boost;
-                                            electrical_demand += pv_remaining;
-                                        } else {
-                                            tes_state_of_charge += (hp_electrical_power
-                                                - electrical_demand)
-                                                * cop_boost;
-                                            electrical_demand = hp_electrical_power;
-                                        }
-                                    }
-                                }
-
-                                // recharge tes to minimum
-                                if tes_state_of_charge < tes_charge_min {
-                                    // Take back up to 10L capacity if possible no matter what time
-                                    if (tes_charge_min - tes_state_of_charge)
-                                        < (hp_electrical_power - electrical_demand) * cop_current
-                                    {
-                                        electrical_demand +=
-                                            (tes_charge_min - tes_state_of_charge) / cop_current;
-                                        tes_state_of_charge = tes_charge_min;
-                                    } else if electrical_demand < hp_electrical_power {
-                                        // Can't take all the way back up to 10L charge
-                                        tes_state_of_charge +=
-                                            (hp_electrical_power - electrical_demand) * cop_current;
-                                    }
-                                }
-
-                                let (pv_equivalent_revenue, electrical_import): (f32, f32) = {
-                                    if pv_generation > electrical_demand {
-                                        // Generating more electricity than using
-                                        (pv_generation - electrical_demand, 0.0)
-                                    } else {
-                                        (0.0, electrical_demand - pv_generation)
-                                    }
-                                };
-
-                                // add_electrical_import_cost_to_opex
-                                if electrical_import > 0.0 {
-                                    match tariff {
-                                        // Flat rate tariff https://www.nimblefins.co.uk/average-cost-electricity-kwh-uk#:~:text=Unit%20Cost%20of%20Electricity%20per,more%20than%20the%20UK%20average
-                                        // Average solar rate https://www.greenmatch.co.uk/solar-energy/solar-panels/solar-panel-grants
-                                        Tariff::FlatRate => {
-                                            operational_costs_peak += 0.163 * electrical_import
-                                        }
-                                        Tariff::Economy7 => {
-                                            // Economy 7 tariff, same source as flat rate above
-                                            if hour < 6 || hour == 23 {
-                                                // Off Peak
-                                                operational_costs_off_peak +=
-                                                    0.095 * electrical_import;
-                                            } else {
-                                                // Peak
-                                                operational_costs_peak += 0.199 * electrical_import;
-                                            }
-                                        }
-                                        Tariff::BulbSmart => {
-                                            // Bulb smart, for East Midlands values 2021
-                                            // https://help.bulb.co.uk/hc/en-us/articles/360017795731-About-Bulb-s-smart-tariff
-                                            if 15 < hour && hour < 19 {
-                                                // Peak winter times throughout the year
-                                                operational_costs_peak +=
-                                                    0.2529 * electrical_import;
-                                            } else {
-                                                // Off peak
-                                                operational_costs_off_peak +=
-                                                    0.1279 * electrical_import;
-                                            }
-                                        }
-                                        Tariff::OctopusGo => {
-                                            // Octopus Go EV, LE10 0YE 2012, https://octopus.energy/go/rates/
-                                            // https://www.octopusreferral.link/octopus-energy-go-tariff/
-                                            if hour < 5 {
-                                                // Off Peak
-                                                operational_costs_off_peak +=
-                                                    0.05 * electrical_import;
-                                            } else {
-                                                // Peak
-                                                operational_costs_peak +=
-                                                    0.1533 * electrical_import;
-                                            }
-                                        }
-                                        Tariff::OctopusAgile => {
-                                            // Octopus Agile file 2020
-                                            // 2021 Octopus export rates https://octopus.energy/outgoing/
-                                            if agile_tariff_current < 9.0 {
-                                                // Off peak, lower range of variable costs
-                                                operational_costs_off_peak += (agile_tariff_current
-                                                    / 100.0)
-                                                    * electrical_import;
-                                            } else {
-                                                // Peak, upper range of variable costs
-                                                operational_costs_peak += (agile_tariff_current
-                                                    / 100.0)
-                                                    * electrical_import;
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // subtract_pv_revenue_from_opex
-                                if pv_equivalent_revenue > 0.0 {
-                                    match tariff {
-                                        // Flat rate tariff https://www.nimblefins.co.uk/average-cost-electricity-kwh-uk#:~:text=Unit%20Cost%20of%20Electricity%20per,more%20than%20the%20UK%20average
-                                        // Average solar rate https://www.greenmatch.co.uk/solar-energy/solar-panels/solar-panel-grants
-                                        Tariff::FlatRate => {
-                                            operational_costs_peak -=
-                                                pv_equivalent_revenue * (0.163 + 0.035) / 2.0
-                                        }
-                                        Tariff::Economy7 => {
-                                            // Economy 7 tariff, same source as flat rate above
-                                            if hour < 6 || hour == 23 {
-                                                // Off Peak
-                                                operational_costs_off_peak -=
-                                                    pv_equivalent_revenue * (0.095 + 0.035) / 2.0;
-                                            } else {
-                                                // Peak
-                                                operational_costs_peak -=
-                                                    pv_equivalent_revenue * (0.199 + 0.035) / 2.0;
-                                            }
-                                        }
-                                        Tariff::BulbSmart => {
-                                            // Bulb smart, for East Midlands values 2021
-                                            // https://help.bulb.co.uk/hc/en-us/articles/360017795731-About-Bulb-s-smart-tariff
-                                            if 15 < hour && hour < 19 {
-                                                // Peak winter times throughout the year
-                                                operational_costs_peak -=
-                                                    pv_equivalent_revenue * (0.2529 + 0.035) / 2.0;
-                                            } else {
-                                                // Off peak
-                                                operational_costs_off_peak -=
-                                                    pv_equivalent_revenue * (0.1279 + 0.035) / 2.0;
-                                            }
-                                        }
-                                        Tariff::OctopusGo => {
-                                            // Octopus Go EV, LE10 0YE 2012, https://octopus.energy/go/rates/
-                                            // https://www.octopusreferral.link/octopus-energy-go-tariff/
-                                            if hour < 5 {
-                                                // Off Peak
-                                                operational_costs_off_peak -=
-                                                    pv_equivalent_revenue * (0.05 + 0.03) / 2.0;
-                                            } else {
-                                                // Peak
-                                                operational_costs_peak -=
-                                                    pv_equivalent_revenue * (0.1533 + 0.03) / 2.0;
-                                            }
-                                        }
-                                        Tariff::OctopusAgile => {
-                                            // Octopus Agile file 2020
-                                            // 2021 Octopus export rates https ://octopus.energy/outgoing/
-                                            if agile_tariff_current < 9.0 {
-                                                // Off peak, lower range of variable costs
-                                                operational_costs_off_peak -= pv_equivalent_revenue
-                                                    * ((agile_tariff_current / 100.0) + 0.055)
-                                                    / 2.0;
-                                            } else {
-                                                // Peak, upper range of variable costs
-                                                operational_costs_peak -= pv_equivalent_revenue
-                                                    * ((agile_tariff_current / 100.0) + 0.055)
-                                                    / 2.0;
-                                            }
-                                        }
-                                    }
-                                }
-
-                                let hourly_operational_emissions: f32 = {
-                                    // Operational emissions summation, 22.5 average ST
-                                    // from https://post.parliament.uk/research-briefings/post-pn-0523/
-                                    let emissions_solar_thermal: f32 =
-                                        solar_thermal_generation * 22.5;
-
-                                    let emissions_pv_generation: f32 = {
-                                        // https://www.parliament.uk/globalassets/documents/post/postpn_383-carbon-footprint-electricity-generation.pdf
-                                        // 75 for PV, 75 - Grid_Emissions show emissions saved for the grid or for reducing other electrical bills
-                                        if pv_size > 0 {
-                                            (pv_generation - pv_equivalent_revenue) * 75.0
-                                                + pv_equivalent_revenue * (75.0 - grid_emissions)
-                                        } else {
-                                            0.0
-                                        }
-                                    };
-
-                                    let emissions_grid_import: f32 =
-                                        electrical_import * grid_emissions;
-
-                                    emissions_solar_thermal
-                                        + emissions_pv_generation
-                                        + emissions_grid_import
-                                };
-                                operational_emissions += hourly_operational_emissions;
-
-                                hour_year_counter += 1;
                             }
+
+                            // recharge tes to minimum
+                            if tes_state_of_charge < tes_charge_min {
+                                // Take back up to 10L capacity if possible no matter what time
+                                if (tes_charge_min - tes_state_of_charge)
+                                    < (hp_electrical_power - electrical_demand) * cop_current
+                                {
+                                    electrical_demand +=
+                                        (tes_charge_min - tes_state_of_charge) / cop_current;
+                                    tes_state_of_charge = tes_charge_min;
+                                } else if electrical_demand < hp_electrical_power {
+                                    // Can't take all the way back up to 10L charge
+                                    tes_state_of_charge +=
+                                        (hp_electrical_power - electrical_demand) * cop_current;
+                                }
+                            }
+
+                            let (pv_equivalent_revenue, electrical_import): (f32, f32) = {
+                                if pv_generation > electrical_demand {
+                                    // Generating more electricity than using
+                                    (pv_generation - electrical_demand, 0.0)
+                                } else {
+                                    (0.0, electrical_demand - pv_generation)
+                                }
+                            };
+
+                            // add_electrical_import_cost_to_opex
+                            if electrical_import > 0.0 {
+                                match tariff {
+                                    // Flat rate tariff https://www.nimblefins.co.uk/average-cost-electricity-kwh-uk#:~:text=Unit%20Cost%20of%20Electricity%20per,more%20than%20the%20UK%20average
+                                    // Average solar rate https://www.greenmatch.co.uk/solar-energy/solar-panels/solar-panel-grants
+                                    Tariff::FlatRate => {
+                                        operational_costs_peak += 0.163 * electrical_import
+                                    }
+                                    Tariff::Economy7 => {
+                                        // Economy 7 tariff, same source as flat rate above
+                                        if hour < 6 || hour == 23 {
+                                            // Off Peak
+                                            operational_costs_off_peak +=
+                                                0.095 * electrical_import;
+                                        } else {
+                                            // Peak
+                                            operational_costs_peak += 0.199 * electrical_import;
+                                        }
+                                    }
+                                    Tariff::BulbSmart => {
+                                        // Bulb smart, for East Midlands values 2021
+                                        // https://help.bulb.co.uk/hc/en-us/articles/360017795731-About-Bulb-s-smart-tariff
+                                        if 15 < hour && hour < 19 {
+                                            // Peak winter times throughout the year
+                                            operational_costs_peak +=
+                                                0.2529 * electrical_import;
+                                        } else {
+                                            // Off peak
+                                            operational_costs_off_peak +=
+                                                0.1279 * electrical_import;
+                                        }
+                                    }
+                                    Tariff::OctopusGo => {
+                                        // Octopus Go EV, LE10 0YE 2012, https://octopus.energy/go/rates/
+                                        // https://www.octopusreferral.link/octopus-energy-go-tariff/
+                                        if hour < 5 {
+                                            // Off Peak
+                                            operational_costs_off_peak +=
+                                                0.05 * electrical_import;
+                                        } else {
+                                            // Peak
+                                            operational_costs_peak +=
+                                                0.1533 * electrical_import;
+                                        }
+                                    }
+                                    Tariff::OctopusAgile => {
+                                        // Octopus Agile file 2020
+                                        // 2021 Octopus export rates https://octopus.energy/outgoing/
+                                        if agile_tariff_current < 9.0 {
+                                            // Off peak, lower range of variable costs
+                                            operational_costs_off_peak += (agile_tariff_current
+                                                / 100.0)
+                                                * electrical_import;
+                                        } else {
+                                            // Peak, upper range of variable costs
+                                            operational_costs_peak += (agile_tariff_current
+                                                / 100.0)
+                                                * electrical_import;
+                                        }
+                                    }
+                                }
+                            }
+
+                            // subtract_pv_revenue_from_opex
+                            if pv_equivalent_revenue > 0.0 {
+                                match tariff {
+                                    // Flat rate tariff https://www.nimblefins.co.uk/average-cost-electricity-kwh-uk#:~:text=Unit%20Cost%20of%20Electricity%20per,more%20than%20the%20UK%20average
+                                    // Average solar rate https://www.greenmatch.co.uk/solar-energy/solar-panels/solar-panel-grants
+                                    Tariff::FlatRate => {
+                                        operational_costs_peak -=
+                                            pv_equivalent_revenue * (0.163 + 0.035) / 2.0
+                                    }
+                                    Tariff::Economy7 => {
+                                        // Economy 7 tariff, same source as flat rate above
+                                        if hour < 6 || hour == 23 {
+                                            // Off Peak
+                                            operational_costs_off_peak -=
+                                                pv_equivalent_revenue * (0.095 + 0.035) / 2.0;
+                                        } else {
+                                            // Peak
+                                            operational_costs_peak -=
+                                                pv_equivalent_revenue * (0.199 + 0.035) / 2.0;
+                                        }
+                                    }
+                                    Tariff::BulbSmart => {
+                                        // Bulb smart, for East Midlands values 2021
+                                        // https://help.bulb.co.uk/hc/en-us/articles/360017795731-About-Bulb-s-smart-tariff
+                                        if 15 < hour && hour < 19 {
+                                            // Peak winter times throughout the year
+                                            operational_costs_peak -=
+                                                pv_equivalent_revenue * (0.2529 + 0.035) / 2.0;
+                                        } else {
+                                            // Off peak
+                                            operational_costs_off_peak -=
+                                                pv_equivalent_revenue * (0.1279 + 0.035) / 2.0;
+                                        }
+                                    }
+                                    Tariff::OctopusGo => {
+                                        // Octopus Go EV, LE10 0YE 2012, https://octopus.energy/go/rates/
+                                        // https://www.octopusreferral.link/octopus-energy-go-tariff/
+                                        if hour < 5 {
+                                            // Off Peak
+                                            operational_costs_off_peak -=
+                                                pv_equivalent_revenue * (0.05 + 0.03) / 2.0;
+                                        } else {
+                                            // Peak
+                                            operational_costs_peak -=
+                                                pv_equivalent_revenue * (0.1533 + 0.03) / 2.0;
+                                        }
+                                    }
+                                    Tariff::OctopusAgile => {
+                                        // Octopus Agile file 2020
+                                        // 2021 Octopus export rates https ://octopus.energy/outgoing/
+                                        if agile_tariff_current < 9.0 {
+                                            // Off peak, lower range of variable costs
+                                            operational_costs_off_peak -= pv_equivalent_revenue
+                                                * ((agile_tariff_current / 100.0) + 0.055)
+                                                / 2.0;
+                                        } else {
+                                            // Peak, upper range of variable costs
+                                            operational_costs_peak -= pv_equivalent_revenue
+                                                * ((agile_tariff_current / 100.0) + 0.055)
+                                                / 2.0;
+                                        }
+                                    }
+                                }
+                            }
+
+                            let hourly_operational_emissions: f32 = {
+                                // Operational emissions summation, 22.5 average ST
+                                // from https://post.parliament.uk/research-briefings/post-pn-0523/
+                                let emissions_solar_thermal: f32 =
+                                    solar_thermal_generation * 22.5;
+
+                                let emissions_pv_generation: f32 = {
+                                    // https://www.parliament.uk/globalassets/documents/post/postpn_383-carbon-footprint-electricity-generation.pdf
+                                    // 75 for PV, 75 - Grid_Emissions show emissions saved for the grid or for reducing other electrical bills
+                                    if pv_size > 0 {
+                                        (pv_generation - pv_equivalent_revenue) * 75.0
+                                            + pv_equivalent_revenue * (75.0 - grid_emissions)
+                                    } else {
+                                        0.0
+                                    }
+                                };
+
+                                let emissions_grid_import: f32 =
+                                    electrical_import * grid_emissions;
+
+                                emissions_solar_thermal
+                                    + emissions_pv_generation
+                                    + emissions_grid_import
+                            };
+                            operational_emissions += hourly_operational_emissions;
+
+                            hour_year_counter += 1;
                         }
                     }
-                    let operational_expenditure: f32 =
-                            operational_costs_peak + operational_costs_off_peak; // tariff
-
-                    let net_present_cost: f32 = capital_expenditure
-                        + operational_expenditure * cumulative_discount_rate;
-
-                    if net_present_cost < min_tariff_net_present_cost {
-                        min_tariff_net_present_cost = net_present_cost;
-                    } // for surface optimisation
-
-                    if net_present_cost < min_net_present_cost {
-                        // Lowest cost TES & tariff for heating tech. For OpEx vs CapEx plots, with optimised TES and tariff
-                        min_net_present_cost = net_present_cost;
-
-                        optimal_specifications
-                            [((heat_option as u8) * 7 + (solar_option as u8)) as usize] =
-                            SystemSpecifications {
-                                heat_option,
-                                solar_option,
-                                pv_size,
-                                solar_thermal_size,
-                                tes_volume,
-                                tariff,
-                                operational_expenditure,
-                                capital_expenditure,
-                                net_present_cost,
-                                operational_emissions,
-                            };
-                    }
                 }
-                min_tariff_net_present_cost
-            };
+                let operational_expenditure: f32 =
+                        operational_costs_peak + operational_costs_off_peak; // tariff
 
-            for solar_size in 0..solar_size_range {
-                for tes_option in 0..tes_range {
-                    let _min_tariff_net_present_cost: f32 =
-                        find_optimal_specification(solar_size, tes_option);
+                let net_present_cost: f32 = capital_expenditure
+                    + operational_expenditure * cumulative_discount_rate;
+
+                if net_present_cost < min_tariff_net_present_cost {
+                    min_tariff_net_present_cost = net_present_cost;
+                } // for surface optimisation
+
+                if net_present_cost < min_net_present_cost {
+                    // Lowest cost TES & tariff for heating tech. For OpEx vs CapEx plots, with optimised TES and tariff
+                    min_net_present_cost = net_present_cost;
+
+                    optimal_specification.pv_size = pv_size;
+                    optimal_specification.solar_thermal_size = solar_thermal_size;
+                    optimal_specification.solar_thermal_size = solar_thermal_size;
+                    optimal_specification.tes_volume = tes_volume;
+                    optimal_specification.tariff = tariff;
+                    optimal_specification.operational_expenditure = operational_expenditure;
+                    optimal_specification.capital_expenditure = capital_expenditure;
+                    optimal_specification.net_present_cost = net_present_cost;
+                    optimal_specification.operational_emissions = operational_emissions;
+                    // optimal_specification =
+                    //     SystemSpecification {
+                    //         heat_option,
+                    //         solar_option,
+                    //         pv_size,
+                    //         solar_thermal_size,
+                    //         tes_volume,
+                    //         tariff,
+                    //         operational_expenditure,
+                    //         capital_expenditure,
+                    //         net_present_cost,
+                    //         operational_emissions,
+                    //     };
                 }
             }
+            min_tariff_net_present_cost
+        };
+
+        for solar_size in 0..solar_size_range {
+            for tes_option in 0..tes_range {
+                let _min_tariff_net_present_cost: f32 =
+                    find_optimal_specification(optimal_specification, solar_size, tes_option);
+            }
         }
-    }
+    };
+
+    #[cfg(target_family = "wasm")] // multi-threaded
+    optimal_specifications.iter_mut()
+    .for_each(|optimal_specification| simulate_heat_solar_combination(optimal_specification));
+
+    #[cfg(not(target_family = "wasm"))] // single-threaded
+    optimal_specifications.par_iter_mut()
+    .for_each(|optimal_specification| simulate_heat_solar_combination(optimal_specification));
 
     for s in optimal_specifications {
-        //dbg!(optimal_specification);
         println!(
             "{:?}, {:?}, {}, {}, {}, {:?}, {}, {}, {}, {}",
             s.heat_option as u8,
@@ -1870,4 +1868,31 @@ pub fn run_simulation(
             s.operational_emissions
         );
     }
+
+    #[cfg(target_family = "wasm")]
+    {
+        let heat_strs: [&str; 3] = ["ERH", "ASHP", "GSHP"];
+        let solar_strs: [&str; 7] = ["None", "PV", "FP", "ET", "FP+PV", "ET+PV", "PVT"];
+        let mut wasm_string: String = String::from("[");
+        for (i, s) in optimal_specifications.iter().enumerate() {
+            if i > 0 {wasm_string.push_str(",");}
+            wasm_string.push_str(&format!(
+            "[{:?}, {:?}, {}, {}, {}, {:.0}, {:.0}, {:.0}, {:.0}]",
+            heat_strs[s.heat_option as usize],
+            solar_strs[s.solar_option as usize],
+            s.pv_size,
+            s.solar_thermal_size,
+            s.tes_volume,
+            //s.tariff as u8,
+            s.operational_expenditure,
+            s.capital_expenditure,
+            s.net_present_cost,
+            s.operational_emissions / 1000.0));
+        }
+        wasm_string.push_str("]");
+        //println!("{}", wasm_string);
+        return wasm_string;
+    }
+    #[cfg(not(target_family = "wasm"))]
+    String::from("simulation complete")
 }
