@@ -29,7 +29,7 @@ async function read_array(filepath) {
 
 async function submit_simulation(postcode, latitude, longitude, num_occupants, house_size, thermostat_temperature, epc_space_heating, tes_volume_max) {
     //console.log(postcode, latitude, longitude, num_occupants, house_size, thermostat_temperature, epc_space_heating, tes_volume_max);
-    const ASSETS_DIR = "/rust_simulator/assets/";
+    const ASSETS_DIR = "./rust_simulator/assets/";
     const agile_tariff_file_path = ASSETS_DIR + "agile_tariff.csv";
     const outside_temps_file_path = ASSETS_DIR + "outside_temps/" + build_file_path(latitude, longitude);
     const solar_irradiances_file_path = ASSETS_DIR + "solar_irradiances/" + build_file_path(latitude, longitude);
@@ -39,6 +39,9 @@ async function submit_simulation(postcode, latitude, longitude, num_occupants, h
     const agile_tariff = await read_array(agile_tariff_file_path);
     const outside_temps = await read_array(outside_temps_file_path);
     const solar_irradiances = await read_array(solar_irradiances_file_path);
+    console.log(agile_tariff);
+    console.log(outside_temps);
+    console.log(solar_irradiances);
 
     const result = run_simulation(thermostat_temperature, latitude, longitude, num_occupants,
         house_size, postcode, epc_space_heating, tes_volume_max, agile_tariff, outside_temps, solar_irradiances);
