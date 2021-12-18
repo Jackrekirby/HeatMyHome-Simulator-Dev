@@ -1148,7 +1148,7 @@ pub fn run_simulation (
     let simulate_heat_solar_combination = |optimal_specification: &mut SystemSpecification| {
         let heat_option = optimal_specification.heat_option;
         let solar_option = optimal_specification.solar_option;
-        //println!("{:?} {:?}", heat_option, solar_option);
+        println!("{:?} {:?}", heat_option, solar_option);
         let hourly_thermostat_temperatures: &[f32; 24] = match heat_option {
             HeatOption::AirSourceHeatPump | HeatOption::GroundSourceHeatPump => {
                 &hourly_hp_thermostat_temperatures

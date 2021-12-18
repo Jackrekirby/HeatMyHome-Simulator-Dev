@@ -132,21 +132,21 @@ function getInt32Memory0() {
 * @param {string} postcode
 * @param {number} epc_space_heating
 * @param {number} tes_volume_max
-* @param {Float32Array} agile_tariff_per_hour_over_year
-* @param {Float32Array} hourly_outside_temperatures_over_year
-* @param {Float32Array} hourly_solar_irradiances_over_year
+* @param {Float32Array} _agile_tariff_per_hour_over_year
+* @param {Float32Array} _hourly_outside_temperatures_over_year
+* @param {Float32Array} _hourly_solar_irradiances_over_year
 * @returns {string}
 */
-export function run_simulation(thermostat_temperature, latitude, longitude, num_occupants, house_size, postcode, epc_space_heating, tes_volume_max, agile_tariff_per_hour_over_year, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year) {
+export function run_simulation(thermostat_temperature, latitude, longitude, num_occupants, house_size, postcode, epc_space_heating, tes_volume_max, _agile_tariff_per_hour_over_year, _hourly_outside_temperatures_over_year, _hourly_solar_irradiances_over_year) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
         var ptr0 = passStringToWasm0(postcode, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len0 = WASM_VECTOR_LEN;
-        var ptr1 = passArrayF32ToWasm0(agile_tariff_per_hour_over_year, wasm.__wbindgen_malloc);
+        var ptr1 = passArrayF32ToWasm0(_agile_tariff_per_hour_over_year, wasm.__wbindgen_malloc);
         var len1 = WASM_VECTOR_LEN;
-        var ptr2 = passArrayF32ToWasm0(hourly_outside_temperatures_over_year, wasm.__wbindgen_malloc);
+        var ptr2 = passArrayF32ToWasm0(_hourly_outside_temperatures_over_year, wasm.__wbindgen_malloc);
         var len2 = WASM_VECTOR_LEN;
-        var ptr3 = passArrayF32ToWasm0(hourly_solar_irradiances_over_year, wasm.__wbindgen_malloc);
+        var ptr3 = passArrayF32ToWasm0(_hourly_solar_irradiances_over_year, wasm.__wbindgen_malloc);
         var len3 = WASM_VECTOR_LEN;
         wasm.run_simulation(retptr, thermostat_temperature, latitude, longitude, num_occupants, house_size, ptr0, len0, epc_space_heating, tes_volume_max, ptr1, len1, ptr2, len2, ptr3, len3);
         var r0 = getInt32Memory0()[retptr / 4 + 0];
@@ -199,32 +199,32 @@ async function init(input) {
         var ret = getStringFromWasm0(arg0, arg1);
         return addHeapObject(ret);
     };
-    imports.wbg.__wbg_error_cc38ce2b4b661e1d = function(arg0) {
-        console.error(getObject(arg0));
-    };
     imports.wbg.__wbindgen_object_drop_ref = function(arg0) {
         takeObject(arg0);
     };
-    imports.wbg.__wbg_log_3445347661d4505e = function(arg0) {
-        console.log(getObject(arg0));
+    imports.wbg.__wbg_debug_f6147a62af5fb117 = function(arg0, arg1, arg2, arg3) {
+        console.debug(getObject(arg0), getObject(arg1), getObject(arg2), getObject(arg3));
     };
-    imports.wbg.__wbindgen_throw = function(arg0, arg1) {
-        throw new Error(getStringFromWasm0(arg0, arg1));
+    imports.wbg.__wbg_error_cc38ce2b4b661e1d = function(arg0) {
+        console.error(getObject(arg0));
     };
     imports.wbg.__wbg_error_8b4a1487636c965d = function(arg0, arg1, arg2, arg3) {
         console.error(getObject(arg0), getObject(arg1), getObject(arg2), getObject(arg3));
     };
-    imports.wbg.__wbg_warn_c1cc594c33944c11 = function(arg0, arg1, arg2, arg3) {
-        console.warn(getObject(arg0), getObject(arg1), getObject(arg2), getObject(arg3));
-    };
     imports.wbg.__wbg_info_74a03c22e1fa6688 = function(arg0, arg1, arg2, arg3) {
         console.info(getObject(arg0), getObject(arg1), getObject(arg2), getObject(arg3));
+    };
+    imports.wbg.__wbg_log_3445347661d4505e = function(arg0) {
+        console.log(getObject(arg0));
     };
     imports.wbg.__wbg_log_ad41dbc3d891c2dc = function(arg0, arg1, arg2, arg3) {
         console.log(getObject(arg0), getObject(arg1), getObject(arg2), getObject(arg3));
     };
-    imports.wbg.__wbg_debug_f6147a62af5fb117 = function(arg0, arg1, arg2, arg3) {
-        console.debug(getObject(arg0), getObject(arg1), getObject(arg2), getObject(arg3));
+    imports.wbg.__wbg_warn_c1cc594c33944c11 = function(arg0, arg1, arg2, arg3) {
+        console.warn(getObject(arg0), getObject(arg1), getObject(arg2), getObject(arg3));
+    };
+    imports.wbg.__wbindgen_throw = function(arg0, arg1) {
+        throw new Error(getStringFromWasm0(arg0, arg1));
     };
 
     if (typeof input === 'string' || (typeof Request === 'function' && input instanceof Request) || (typeof URL === 'function' && input instanceof URL)) {
