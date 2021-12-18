@@ -10,7 +10,7 @@ macro_rules! println {
     }
 }
 
-mod heatninja;
+mod heat_ninja;
 
 #[wasm_bindgen]
 pub fn run_simulation(
@@ -41,7 +41,7 @@ pub fn run_simulation(
     //     hourly_outside_temperatures_over_year,
     //     hourly_solar_irradiances_over_year,
     // )
-    heatninja::run_simulation(
+    heat_ninja::run_simulation(
         thermostat_temperature,
         latitude,
         longitude,

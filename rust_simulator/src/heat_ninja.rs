@@ -1,5 +1,3 @@
-use arrayvec::ArrayVec;
-
 #[cfg(not(target_family = "wasm"))]
 use rayon::prelude::*;
 #[cfg(target_family = "wasm")]
@@ -25,6 +23,13 @@ pub fn run_simulation (
     hourly_outside_temperatures_over_year: &[f32],
     hourly_solar_irradiances_over_year: &[f32],
 ) -> String {
+    #[cfg(target_family = "wasm")]
+    {
+        wasm_logger::init(wasm_logger::Config::default());
+        // Logging
+        log::info!("Some info");
+        log::error!("Error message");
+    }
     // input arguments:
     /*
         thermostat_temperature
@@ -502,21 +507,16 @@ pub fn run_simulation (
         ),
     };
 
-    let monthly_solar_gains_north: ArrayVec<f32, 12> = {
-        monthly_epc_solar_irradiances
-            .iter()
-            .zip(&monthly_solar_gain_ratios_north)
-            .map(|(a, b)| (*a as f32) * b * solar_gain_house_factor)
-            .collect()
+    let calculate_monthly_solar_gains = | monthly_solar_gain_ratios: &[f32; 12] | -> [f32; 12]{
+        let mut monthly_solar_gains: [f32; 12] = [0.0; 12];
+        for i in 0..monthly_epc_solar_irradiances.len() {
+            monthly_solar_gains[i] = (monthly_epc_solar_irradiances[i] as f32) * monthly_solar_gain_ratios[i] * solar_gain_house_factor;
+        }
+        monthly_solar_gains
     };
 
-    let monthly_solar_gains_south: ArrayVec<f32, 12> = {
-        monthly_epc_solar_irradiances
-            .iter()
-            .zip(&monthly_solar_gain_ratios_south)
-            .map(|(a, b)| (*a as f32) * b * solar_gain_house_factor)
-            .collect()
-    };
+    let monthly_solar_gains_north = calculate_monthly_solar_gains(&monthly_solar_gain_ratios_north);
+    let monthly_solar_gains_south = calculate_monthly_solar_gains(&monthly_solar_gain_ratios_south);
 
     let heat_capacity: f32 = (250.0 * house_size) / 3600.0;
     let body_heat_gain: f32 = ((num_occupants as f32) * 60.0) / 1000.0;
@@ -1826,26 +1826,12 @@ pub fn run_simulation (
 
                     optimal_specification.pv_size = pv_size;
                     optimal_specification.solar_thermal_size = solar_thermal_size;
-                    optimal_specification.solar_thermal_size = solar_thermal_size;
                     optimal_specification.tes_volume = tes_volume;
                     optimal_specification.tariff = tariff;
                     optimal_specification.operational_expenditure = operational_expenditure;
                     optimal_specification.capital_expenditure = capital_expenditure;
                     optimal_specification.net_present_cost = net_present_cost;
                     optimal_specification.operational_emissions = operational_emissions;
-                    // optimal_specification =
-                    //     SystemSpecification {
-                    //         heat_option,
-                    //         solar_option,
-                    //         pv_size,
-                    //         solar_thermal_size,
-                    //         tes_volume,
-                    //         tariff,
-                    //         operational_expenditure,
-                    //         capital_expenditure,
-                    //         net_present_cost,
-                    //         operational_emissions,
-                    //     };
                 }
             }
             min_tariff_net_present_cost

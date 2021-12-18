@@ -1,3 +1,13 @@
+(() => {
+    const console_log = window.console.log;
+    window.console.log = function (...args) {
+        console_log(...args);
+        var textarea = document.getElementById('my_console');
+        if (!textarea) return;
+        args.forEach(arg => textarea.value += `${JSON.stringify(arg)}\n`);
+    }
+})();
+
 if (window.Worker) {
     var myWorker = new Worker('worker.js');
     var rustWorker = new Worker('rust_worker.js', { type: "module" });
@@ -34,6 +44,8 @@ rustWorker.onmessage = function (e) {
         console.log(`Rust Simulation Runtime: ${runtime}s`);
         document.getElementById('sim-runtime').innerHTML = runtime;
         renderSimTable(e.data[1]);
+    } else if (e.data[0] == "msg") {
+        console.log(`Rust MSG: ${e.data[1]}`);
     } else {
         console.warn('Message from worker is not linked to any event: ', e.data);
     }
@@ -44,7 +56,7 @@ api_search = {
     postcode: "CV47AL", latitude: 52.3833, longitude: -1.5833, occupants: 2,
     temperature: 20.0, space_heating: 3000, floor_area: 60.0, tes_max: 0.5
 };
-loadURLParams();
+//loadURLParams();
 
 function updateURLParams() {
     search = Array();

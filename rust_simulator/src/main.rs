@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{prelude::*, BufReader};
 use std::env;
 
-mod heatninja;
+mod heat_ninja;
 
 fn import_file_data(assets_dir: String, latitude: f32, longitude: f32) -> ([f32; 8760], [f32; 8760], [f32; 8760]) {
     // wasm does not support Rust file io,
@@ -45,7 +45,8 @@ fn import_file_data(assets_dir: String, latitude: f32, longitude: f32) -> ([f32;
     (agile_tariff_per_hour_over_year, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year)
 }
 
-fn main() {
+#[allow(dead_code)]
+fn run_simulation() {
     let now = Instant::now();
     let latitude: f32 = 52.3833;
     let longitude: f32 = -1.5833;
@@ -53,7 +54,7 @@ fn main() {
         hourly_outside_temperatures_over_year,
         hourly_solar_irradiances_over_year) = import_file_data(String::from("assets/"), latitude, longitude);
 
-    heatninja::run_simulation(
+    heat_ninja::run_simulation(
         20.0,
         latitude,
         longitude,
@@ -68,6 +69,43 @@ fn main() {
     );
     println!("{} ms", now.elapsed().as_millis());
 }
+
+fn main() {
+    run_simulation();
+    //build_profile();
+}
+
+// #[allow(dead_code)]
+// fn build_profile() {
+//     let filepath = "src/heatninja.rs";
+//     let file = File::open(filepath).expect("cannot read file.");
+//     let reader = BufReader::new(file);
+//
+//     let mut ofile = File::create("src/heatninja_profile.rs").expect("could not open file");
+//     ofile.write_all(b"use std::time::Instant;\nuse std::fs::File;\nuse std::io::{prelude::*};\n").expect("cannot write file");
+//
+//     for (i, result) in reader.lines().enumerate() {
+//         let line = result.expect("cannot read line");
+//         let key_start = "// profile start";
+//         let key = "// profile";
+//
+//         if line.contains(key_start) {
+//             ofile.write_all(
+//                 line.replace(key_start,
+//                              "let mut profile_file = File::create(\"profile/heatninja.txt\").expect(\"could not open file\");\n").as_ref()).
+//                 expect("cannot write file");
+//             ofile.write_all(line.replace(key_start, "let now = Instant::now();\n").as_ref()).expect("cannot write file");
+//         } else if line.contains(key) {
+//             //println!("{:?}", line.replace(key, "// THIS IS THE NEW THING!"));
+//             //println!("{:?}", line.find(key).expect("could not find position"));
+//             let pstring = format!("profile_file.write_all(format!(\"{},{{}}\n\", now.elapsed().as_micros()).as_ref()).expect(\"cannot write file\");\n", i);
+//             ofile.write_all(line.replace(key,&pstring).as_ref()).expect("cannot write file");
+//         } else {
+//             ofile.write_all(format!("{}\n", line).as_ref()).expect("cannot write file");
+//         }
+//         //println!("i: {}|{:?}", i, line.expect("cannot read line"));
+//     }
+// }
 
 // archive
 // #[allow(dead_code)]
