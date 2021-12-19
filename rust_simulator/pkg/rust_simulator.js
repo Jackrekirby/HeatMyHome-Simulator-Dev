@@ -101,21 +101,6 @@ function passStringToWasm0(arg, malloc, realloc) {
     return ptr;
 }
 
-let cachegetFloat32Memory0 = null;
-function getFloat32Memory0() {
-    if (cachegetFloat32Memory0 === null || cachegetFloat32Memory0.buffer !== wasm.memory.buffer) {
-        cachegetFloat32Memory0 = new Float32Array(wasm.memory.buffer);
-    }
-    return cachegetFloat32Memory0;
-}
-
-function passArrayF32ToWasm0(arg, malloc) {
-    const ptr = malloc(arg.length * 4);
-    getFloat32Memory0().set(arg, ptr / 4);
-    WASM_VECTOR_LEN = arg.length;
-    return ptr;
-}
-
 let cachegetInt32Memory0 = null;
 function getInt32Memory0() {
     if (cachegetInt32Memory0 === null || cachegetInt32Memory0.buffer !== wasm.memory.buffer) {
@@ -132,23 +117,14 @@ function getInt32Memory0() {
 * @param {string} postcode
 * @param {number} epc_space_heating
 * @param {number} tes_volume_max
-* @param {Float32Array} _agile_tariff_per_hour_over_year
-* @param {Float32Array} _hourly_outside_temperatures_over_year
-* @param {Float32Array} _hourly_solar_irradiances_over_year
 * @returns {string}
 */
-export function run_simulation(thermostat_temperature, latitude, longitude, num_occupants, house_size, postcode, epc_space_heating, tes_volume_max, _agile_tariff_per_hour_over_year, _hourly_outside_temperatures_over_year, _hourly_solar_irradiances_over_year) {
+export function run_simulation(thermostat_temperature, latitude, longitude, num_occupants, house_size, postcode, epc_space_heating, tes_volume_max) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
         var ptr0 = passStringToWasm0(postcode, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len0 = WASM_VECTOR_LEN;
-        var ptr1 = passArrayF32ToWasm0(_agile_tariff_per_hour_over_year, wasm.__wbindgen_malloc);
-        var len1 = WASM_VECTOR_LEN;
-        var ptr2 = passArrayF32ToWasm0(_hourly_outside_temperatures_over_year, wasm.__wbindgen_malloc);
-        var len2 = WASM_VECTOR_LEN;
-        var ptr3 = passArrayF32ToWasm0(_hourly_solar_irradiances_over_year, wasm.__wbindgen_malloc);
-        var len3 = WASM_VECTOR_LEN;
-        wasm.run_simulation(retptr, thermostat_temperature, latitude, longitude, num_occupants, house_size, ptr0, len0, epc_space_heating, tes_volume_max, ptr1, len1, ptr2, len2, ptr3, len3);
+        wasm.run_simulation(retptr, thermostat_temperature, latitude, longitude, num_occupants, house_size, ptr0, len0, epc_space_heating, tes_volume_max);
         var r0 = getInt32Memory0()[retptr / 4 + 0];
         var r1 = getInt32Memory0()[retptr / 4 + 1];
         return getStringFromWasm0(r0, r1);
