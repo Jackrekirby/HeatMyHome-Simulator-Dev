@@ -1,0 +1,55 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="style.css" />
+    <title>Document</title>
+  </head>
+  <body>
+    <h1>Testing</h1>
+    <label for="sortby">Sort by:</label>
+    <select name="sortby" id="sortby" onchange="updateSortBy()">
+      <option value="0" selected>None</option>
+      <option value="1">OPEX</option>
+      <option value="2">CAPEX</option>
+      <option value="3">NPC</option>
+      <option value="4">OPEM</option>
+    </select>
+    <label for="groupby">Group by:</label>
+    <select name="groupby" id="groupby" onchange="updateGroupBy()">
+      <option value="0" selected>None</option>
+      <option value="1">Heat Option</option>
+      <option value="2">Solar Option</option>
+    </select>
+    <label
+      name="collapse-groups"
+      for="collapse-groups"
+      onchange="updateSortBy()"
+      >Collapse Groups</label
+    >
+    <input
+      name="collapse-groups"
+      id="collapse-groups"
+      type="checkbox"
+      onchange="updateCollapseGroups()"
+      checked
+    />
+    <!-- <button id="draw-table" onclick="test()">Draw Table</button> -->
+    <table id="sim-table">
+      <tr>
+        <th>Heat Opt</th>
+        <th>Solar Opt</th>
+        <th>PV Size<br />(m<sup>2</sup>)</th>
+        <th>Solar Size<br />(m<sup>2</sup>)</th>
+        <th>TES Vol<br />(m<sup>3</sup>)</th>
+        <th>OPEX<br />(£/yr)</th>
+        <th>CAPEX<br />(£)</th>
+        <th>NPC<br />(£)</th>
+        <th>OPEM<br />(kgCO<sub>2</sub>eq/yr)</th>
+      </tr>
+    </table>
+
+    <script src="index.js"></script>
+  </body>
+</html>

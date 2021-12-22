@@ -18,6 +18,8 @@ if (window.Worker) {
     console.warn('Web Workers not supported');
 }
 
+var sim_string;
+
 myWorker.onmessage = function (e) {
     //console.log('Message received from worker:', e);
     if (e.data[0] == "initiation complete") {
@@ -28,7 +30,9 @@ myWorker.onmessage = function (e) {
         let runtime = ((end - e.data[2]) / 1000.0).toPrecision(3);
         console.log(`C++ Simulation Runtime: ${runtime}s`);
         document.getElementById('sim-runtime').innerHTML = runtime;
-        renderSimTable(e.data[1]);
+        sim_string = e.data[1];
+        document.getElementById('results').classList.remove("hide");
+        renderSimTable();
     } else {
         console.warn('Message from worker is not linked to any event: ', e.data);
     }
@@ -43,7 +47,9 @@ rustWorker.onmessage = function (e) {
         let runtime = ((end - e.data[2]) / 1000.0).toPrecision(3);
         console.log(`Rust Simulation Runtime: ${runtime}s`);
         document.getElementById('sim-runtime').innerHTML = runtime;
-        renderSimTable(e.data[1]);
+        sim_string = e.data[1];
+        document.getElementById('results').classList.remove("hide");
+        renderSimTable();
     } else if (e.data[0] == "msg") {
         console.log(`Rust MSG: ${e.data[1]}`);
     } else {
@@ -148,9 +154,9 @@ function submitSimulation() {
     postcode = postcode.toUpperCase().replace(' ', '');
     document.getElementById('sim-postcode').value = postcode;
 
+    document.getElementById('results').classList.add("hide");
 
     simtable = document.getElementById('sim-table');
-    simtable.classList.add("hide");
     while (document.getElementsByTagName('tr').length > 1) {
         simtable.removeChild(simtable.lastChild);
     }
@@ -185,24 +191,6 @@ document.getElementById('sim-use-rust').addEventListener('change', (event) => {
     }
 });
 
-function renderSimTable(sim_string) {
-    console.log(sim_string);
-    specslist = JSON.parse(sim_string);
-    simtable = document.getElementById('sim-table');
-
-    for (let specs of specslist) {
-        //console.log(specs);
-        let tr = document.createElement('tr');
-        for (let value of specs) {
-            let td = document.createElement('td');
-            td.innerHTML = value;
-            tr.appendChild(td);
-        }
-        simtable.appendChild(tr);
-    }
-    simtable.classList.remove("hide");
-}
-
 // https://zetcode.com/javascript/jsonurl/
 function getJSON(url, callback) {
     var xhr = new XMLHttpRequest();
@@ -221,3 +209,109 @@ function getJSON(url, callback) {
     };
     xhr.send();
 };
+
+// ================================================================================================================
+
+let sortby_index = 7;
+function compare(a, b) {
+    const i = sortby_index;
+    if (sortby_index == 4) {
+        return 0;
+    }
+
+    if (a[i] < b[i]) {
+        return -1;
+    }
+    if (a[i] > b[i]) {
+        return 1;
+    }
+    return 0;
+}
+
+function renderSimTable() {
+    //console.log(sim_string);
+    output_json = JSON.parse(sim_string);
+    simtable = document.getElementById('sim-table');
+
+    let groupbyopt = document.getElementById('groupby');
+    groupby_index = Number(groupbyopt.value);
+
+    let sortbyopt = document.getElementById('sortby');
+    sortby_index = Number(sortbyopt.value) + 4;
+
+    simtable = document.getElementById('sim-table');
+    while (document.getElementsByTagName('tr').length > 1) {
+        simtable.removeChild(simtable.lastChild);
+    }
+
+    let speci = 0;
+    switch (groupby_index) {
+        case 0:
+            speci = Array(21).keys();
+            output_json.sort(compare);
+            break;
+        case 1:
+            speci = [0, 7, 14];
+            //speci = Array(21).keys();
+            a = output_json.slice(0, 7).sort(compare);
+            b = output_json.slice(7, 14).sort(compare);
+            c = output_json.slice(14, 21).sort(compare);
+            output_json = a.concat(b, c);
+            break;
+        default: // 2
+            b = output_json;
+            output_json = [];
+            for (let ii of Array(7).keys()) {
+                let a = [b[ii], b[ii + 7], b[ii + 14]];
+                a.sort(compare);
+                //console.log(a);
+                output_json.push(a[0]);
+                output_json.push(a[1]);
+                output_json.push(a[2]);
+            }
+            speci = [0, 3, 6, 9, 12, 15, 18];
+        //part_json.sort(compare);
+    }
+
+    let collapseGroupsEle = document.getElementById('collapse-groups-input');
+    let collapseGroups = collapseGroupsEle.checked;
+    //console.log(collapseGroups);
+    if (!collapseGroups) {
+        speci = Array(21).keys();
+    }
+    // let part_json = [];
+    // for (let ii of speci) {
+    //     part_json.push(output_json[ii]);
+    // };
+    //console.log(output_json);
+
+    for (let ii of speci) {
+        //console.log(ii);
+        let tr = document.createElement('tr');
+        for (let value of output_json[ii]) {
+            let td = document.createElement('td');
+            td.innerHTML = value;
+            tr.appendChild(td);
+        }
+        simtable.appendChild(tr);
+    }
+}
+
+function updateGroupBy() {
+    let groupbyopt = document.getElementById('groupby');
+    groupby_index = Number(groupbyopt.value);
+    if (groupby_index == 0) {
+        document.getElementById('collapse-groups').classList.add("hide");;
+    } else {
+        document.getElementById('collapse-groups').classList.remove("hide");;
+    }
+    renderSimTable();
+}
+
+function updateSortBy() {
+    renderSimTable();
+}
+
+function updateCollapseGroups() {
+    renderSimTable();
+}

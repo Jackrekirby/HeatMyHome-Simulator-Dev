@@ -9,7 +9,7 @@
   <body>
     <div class="main-page">
       <h1>Water & Space Heating Simulator</h1>
-      <p>v0.0.3</p>
+      <p>v0.0.4</p>
       <div class="input-block">
         <h2>Simulation Parameters</h2>
         <div class="flex-row">
@@ -66,19 +66,51 @@
         </div>
       </div>
 
-      <table id="sim-table" class="hide">
-        <tr>
-          <th>Heat Opt</th>
-          <th>Solar Opt</th>
-          <th>PV Size<br />(m<sup>2</sup>)</th>
-          <th>Solar Size<br />(m<sup>2</sup>)</th>
-          <th>TES Vol<br />(m<sup>3</sup>)</th>
-          <th>OPEX<br />(£/yr)</th>
-          <th>CAPEX<br />(£)</th>
-          <th>NPC<br />(£)</th>
-          <th>OPEM<br />(kgCO<sub>2</sub>eq/yr)</th>
-        </tr>
-      </table>
+      <div id="results" class="hide">
+        <div class="flex-row">
+          <p>Sort By</p>
+          <select name="sortby" id="sortby" onchange="updateSortBy()">
+            <option value="0" selected>None</option>
+            <option value="1">OPEX</option>
+            <option value="2">CAPEX</option>
+            <option value="3">NPC</option>
+            <option value="4">OPEM</option>
+          </select>
+        </div>
+        <div class="flex-row">
+          <p>Group By</p>
+          <select name="groupby" id="groupby" onchange="updateGroupBy()">
+            <option value="0" selected>None</option>
+            <option value="1">Heat Option</option>
+            <option value="2">Solar Option</option>
+          </select>
+        </div>
+        <div class="flex-row hide" id="collapse-groups">
+          <p>Collapse Groups</p>
+          <input
+            id="collapse-groups-input"
+            type="checkbox"
+            checked
+            onchange="updateCollapseGroups()"
+          />
+        </div>
+        <table id="sim-table">
+          <tr>
+            <th>Heat Opt</th>
+            <th>Solar Opt</th>
+            <th>PV Size<br />(m<sup>2</sup>)</th>
+            <th>
+              Solar Thermal<br />
+              Size (m<sup>2</sup>)
+            </th>
+            <th>TES Vol<br />(m<sup>3</sup>)</th>
+            <th>OPEX<br />(£/yr)</th>
+            <th>CAPEX<br />(£)</th>
+            <th>NPC<br />(£)</th>
+            <th>OPEM<br />(kgCO<sub>2</sub>eq/yr)</th>
+          </tr>
+        </table>
+      </div>
       <textarea id="my_console"></textarea>
       <!-- <textarea readonly id="console-log">Console logs here ...</textarea>
       <button class="clear-console" onclick="clearConsole();">

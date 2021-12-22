@@ -1074,7 +1074,7 @@ void runSimulationWithDefaultParameters()
     std::string postcode = "CV4 7AL";
     int epc_space_heating = 3000;
     float house_size = 60.0f;
-    float tes_volume_max = 3.0f;
+    float tes_volume_max = 0.5f;
     float thermostat_temperature = 20.0f;
     const float latitude = 52.3833f;
     const float longitude = -1.5833f;
@@ -1100,6 +1100,7 @@ void runSimulationWithDefaultParameters()
 #endif
     heatninja2::SimulationOptions simulation_options = { output_demand, output_optimal_specs, output_all_specs, output_file_index, use_multithreading, use_optimisation_surfaces };
     std::string java_script_output = heatninja2::run_simulation(thermostat_temperature, latitude, longitude, num_occupants, house_size, postcode, epc_space_heating, tes_volume_max, simulation_options);
+    std::cout << java_script_output << "\n";
 #ifndef EM_COMPATIBLE
     t.stop();
 #endif
