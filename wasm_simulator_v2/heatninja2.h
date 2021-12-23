@@ -235,4 +235,6 @@ namespace heatninja2 {
     void write_optimal_specifications(const std::array<HeatSolarSystemSpecifications, 21>& optimal_specifications, const std::string& filename);
 
     std::string output_to_javascript(const std::array<HeatSolarSystemSpecifications, 21>& optimal_specifications);
+
+    void calculate_hydrogen_gas_biomass_systems(const float yearly_erh_demand, const float yearly_hp_demand, const int epc_space_heating, const float cumulative_discount_rate, const int npc_years, const int grid_emissions);
 }

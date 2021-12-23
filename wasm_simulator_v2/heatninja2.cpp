@@ -148,7 +148,8 @@ namespace heatninja2 {
         const std::array<float, 12> monthly_roof_ratios_south = calculate_roof_ratios_south(monthly_solar_declinations, latitude);
         constexpr float u_value = 1.30f / 1000; // 0.00130 kW / m2K linearised from https ://zenodo.org/record/4692649#.YQEbio5KjIV &
         const std::vector<float> agile_tariff_per_hour_over_year = import_per_hour_of_year_data("assets/agile_tariff.csv");
-        constexpr int grid_emissions = 212;
+        constexpr int grid_emissions = 212; // Current UK 212gCO2e/kWh electricity
+        // https://www.gov.uk/government/publications/greenhouse-gas-reporting-conversion-factors-2021
 
         std::array<HeatSolarSystemSpecifications, 21> optimal_specifications;
         
@@ -166,13 +167,106 @@ namespace heatninja2 {
             }
         }
 
+
         print_optimal_specifications(optimal_specifications, float_print_precision);
 
         #ifndef EM_COMPATIBLE
         if (simulation_options.output_optimal_specs) write_optimal_specifications(optimal_specifications, "debug_data/optimal_specs_" + std::to_string(simulation_options.output_file_index) + ".csv");
         #endif
 
+        calculate_hydrogen_gas_biomass_systems(yearly_erh_demand, yearly_hp_demand, epc_space_heating, cumulative_discount_rate, npc_years, grid_emissions);
+
         return output_to_javascript(optimal_specifications);
+    }
+
+    void calculate_hydrogen_gas_biomass_systems(const float yearly_erh_demand, const float yearly_hp_demand, const int epc_space_heating, const float cumulative_discount_rate, const int npc_years, const int grid_emissions) {
+        const float yearly_boiler_demand = yearly_erh_demand / 0.9f;
+        const float yearly_fuel_cell_demand = yearly_erh_demand / 0.94f;
+        
+        // Hydrogen Boiler OPEX, CAPEX, NPC
+        const float grey_hydrogen_cost = 0.049; // 4.9p / kWh A greener gas grid : What are the options, lowest cost also more expensive than gas
+        const float blue_hydrogen_cost = 0.093; // # 9.3p / kWh A greener gas grid : What are the options, average cost
+        const float green_hydrogen_cost = 0.184; // # 18.4p / kWh A greener gas grid : What are the options, highest cost
+        // Green cost could also be considered as low cost electricity(across more than 5 or 7 hours of the day) / 0.6
+        // 60 % efficient from potentials and risk of H2
+        const float grey_hydrogen_boiler_opex = yearly_boiler_demand * grey_hydrogen_cost; // 90 % Boiler efficiency
+        const float blue_hydrogen_boiler_opex = yearly_boiler_demand * blue_hydrogen_cost; // 90 % Boiler efficiency
+        const float green_hydrogen_boiler_opex = yearly_boiler_demand * green_hydrogen_cost; // 90 % Boiler efficiency
+        float hydrogen_boiler_capex = 2000 + epc_space_heating / 25;  // £2200 - 3000 from A greener gas grid : What are the options
+        if (hydrogen_boiler_capex > 3000) {
+            hydrogen_boiler_capex = 3000;
+        }
+        const float grey_hydrogen_boiler_npc = hydrogen_boiler_capex + cumulative_discount_rate * grey_hydrogen_boiler_opex;
+        const float blue_hydrogen_boiler_npc = hydrogen_boiler_capex + cumulative_discount_rate * blue_hydrogen_boiler_opex;
+        const float green_hydrogen_boiler_npc = hydrogen_boiler_capex + cumulative_discount_rate * green_hydrogen_boiler_opex;
+        
+        // Gas Boiler OPEX, CAPEX, NPC
+        const float gas_boiler_opex = yearly_boiler_demand * 0.04; // 90 % Boiler efficiency 4p / kWh
+        // https://www.gov.uk/government/statistical-data-sets/annual-domestic-energy-price-statistics
+        // Avg gas bills £557, for 13, 600kWh = 4.09p / kWh includes equivalent standing charge
+        const float gas_boiler_capex = hydrogen_boiler_capex - 500; // Estimated 500 less
+        const float gas_boiler_npc = gas_boiler_capex + cumulative_discount_rate * gas_boiler_opex;
+
+        // Hydrogen Fuel Cell OPEX, CAPEX, NPC
+        const float grey_hydrogen_fuel_cell_opex = yearly_fuel_cell_demand * grey_hydrogen_cost; // 55 % thermal efficiency, continuous profile
+        const float blue_hydrogen_fuel_cell_opex = yearly_fuel_cell_demand * blue_hydrogen_cost; // 39 % electrical efficiency
+        const float green_hydrogen_fuel_cell_opex = yearly_fuel_cell_demand * green_hydrogen_cost; // Equivalent 94 % total efficiency
+        // https://www.sciencedirect.com/science/article/pii/S0360319914031383#bib14
+        // With all electrical energy used via direct electrical heater, comparable to electricity bill reductions method
+        const float hydrogen_fuel_cell_capex = (12000 + 2068.3 * std::powf(0.1, 0.553)) * npc_years / 10; // 12000 fuel cell + min TES size, CAPEX of 10 yr life adjusted for npc_years
+        // https://www.sciencedirect.com/science/article/pii/S0360319914031383#bib14 lowest cost
+        const float grey_hydrogen_fuel_cell_npc = hydrogen_fuel_cell_capex + cumulative_discount_rate * grey_hydrogen_fuel_cell_opex;
+        const float blue_hydrogen_fuel_cell_npc = hydrogen_fuel_cell_capex + cumulative_discount_rate * blue_hydrogen_fuel_cell_opex;
+        const float green_hydrogen_fuel_cell_npc = hydrogen_fuel_cell_capex + cumulative_discount_rate * green_hydrogen_fuel_cell_opex;
+
+        // Biomass Boiler OPEX, CAPEX, NPC
+        // Biomass source https ://www.greenmatch.co.uk/blog/2015/02/how-much-does-a-biomass-boiler-cost
+        const float biomass_fuel_cost = 0.0411; // 4.11p / kWh
+        const float biomass_opex = yearly_boiler_demand * biomass_fuel_cost; // 90 % Boiler efficiency
+        float biomass_capex = 9000 + epc_space_heating / 4; // £10 - 19k for automatically fed biomass boilers
+        if (biomass_capex > 19000) {
+            biomass_capex = 19000;
+        }
+        const float biomass_npc = biomass_capex + cumulative_discount_rate * biomass_opex;
+
+        const float boiler_demand_npc = yearly_erh_demand * cumulative_discount_rate; // £s
+
+        const float SPEC_NPC = 0, SPEC_EMISSIONS = 0;
+        const float npc_per_kwh = SPEC_NPC / boiler_demand_npc;
+        const float emissions_per_kwh = SPEC_EMISSIONS / yearly_erh_demand; // same for all spec and boilers ===============================================
+
+        const float gas_emissions_per_kwh = 183; // // 183 gCO2e / kWh for UK natural gas
+        const float grey_hydrogen_emissions_per_kwh = 382; // gCO2e / kWh, 382 middle value from SMR w / o CCS in parliament post
+        const float blue_hydrogen_emissions_per_kwh = 60; // gCO2e / kWh, 60 middle value from SMR with CCS in parliament post
+        const float green_hydrogen_emissions_per_kwh = 1875 * (grid_emissions / 1000); // gCO2e / kWh,  1875 gCO2 / kWhe of grid in parliament post
+        const float biomass_emissions_per_khw = 90; // 90gCO2 / kWh middle value from parliament post
+
+
+        const float gas_boiler_emissions = yearly_boiler_demand * gas_emissions_per_kwh; 
+        const float grey_hydrogen_boiler_emissions = yearly_boiler_demand * grey_hydrogen_emissions_per_kwh;
+        const float blue_hydrogen_boiler_emissions = yearly_boiler_demand * blue_hydrogen_emissions_per_kwh;
+        const float green_hydrogen_boiler_emissions = yearly_boiler_demand * green_hydrogen_emissions_per_kwh;
+
+        const float grey_hydrogen_fuel_cell_emissions = yearly_fuel_cell_demand * grey_hydrogen_emissions_per_kwh;
+        const float blue_hydrogen_fuel_cell_emissions = yearly_fuel_cell_demand * blue_hydrogen_emissions_per_kwh;
+        const float green_hydrogen_fuel_cell_emissions = yearly_fuel_cell_demand * green_hydrogen_emissions_per_kwh;
+
+        const float biomass_boiler_emissions = yearly_boiler_demand * biomass_emissions_per_khw; // 90gCO2 / kWh middle value from parliament post
+
+        // format OPEX, CAPEX & NPC for hydrogen, gas & biomass boilers, and hydrogen fuel cells
+
+        std::stringstream ss;
+        ss << "[" << grey_hydrogen_boiler_opex << ", " << hydrogen_boiler_capex << ", " << grey_hydrogen_boiler_npc << "], [" <<
+            blue_hydrogen_boiler_opex << ", " << hydrogen_boiler_capex << ", " << blue_hydrogen_boiler_npc << "], [" <<
+            green_hydrogen_boiler_opex << ", " << hydrogen_boiler_capex << ", " << green_hydrogen_boiler_npc << "], [" <<  
+            grey_hydrogen_fuel_cell_opex << ", " << hydrogen_fuel_cell_capex << ", " << grey_hydrogen_fuel_cell_npc << "], [" <<
+            blue_hydrogen_fuel_cell_opex << ", " << hydrogen_fuel_cell_capex << ", " << blue_hydrogen_fuel_cell_npc << "], [" <<
+            green_hydrogen_fuel_cell_opex << ", " << hydrogen_fuel_cell_capex << ", " << green_hydrogen_fuel_cell_npc << "], [" <<
+            gas_boiler_opex << ", " << gas_boiler_capex << ", " << gas_boiler_npc << "], [" <<
+            biomass_opex << ", " << biomass_capex << ", " << biomass_npc << "]";
+
+        std::cout << ss.str() << "\n";
+
     }
 
     float round_coordinate(const float coordinate) {
