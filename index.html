@@ -3,14 +3,14 @@
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" href="icon.ico" />
+    <!-- <link rel="icon" href="icon.ico" /> -->
     <title>WASH Simulator</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <div class="main-page">
       <h1>Water & Space Heating Simulator</h1>
-      <p>v0.0.4</p>
+      <p>v0.0.5</p>
       <div class="input-block">
         <h2>Simulation Parameters</h2>
         <div class="flex-row">
@@ -68,6 +68,8 @@
       </div>
 
       <div id="results" class="hide">
+        <button onclick="clipboardJSON();">Copy Results to Clipboard</button>
+        <a id="download-link" href="test">Download</a>
         <div class="flex-row">
           <p>Sort By</p>
           <select name="sortby" id="sortby" onchange="updateSortBy()">
@@ -78,21 +80,21 @@
             <option value="4">OPEM</option>
           </select>
         </div>
-        <div class="flex-row">
-          <p>Group By</p>
-          <select name="groupby" id="groupby" onchange="updateGroupBy()">
-            <option value="0" selected>None</option>
-            <option value="1">Heat Option</option>
-            <option value="2">Solar Option</option>
-          </select>
+        <div class="flex-row" id="group-systems">
+          <p>Group Heat Options</p>
+          <input
+            id="group-systems-input"
+            type="checkbox"
+            onchange="updateGroupSystems()"
+          />
         </div>
-        <div class="flex-row hide" id="collapse-groups">
+        <div class="flex-row" id="collapse-groups">
           <p>Collapse Groups</p>
           <input
             id="collapse-groups-input"
             type="checkbox"
-            checked
             onchange="updateCollapseGroups()"
+            disabled
           />
         </div>
         <table id="sim-table">
@@ -112,7 +114,7 @@
           </tr>
         </table>
       </div>
-      <textarea id="my_console"></textarea>
+      <!-- <textarea id="my_console"></textarea> -->
       <!-- <textarea readonly id="console-log">Console logs here ...</textarea>
       <button class="clear-console" onclick="clearConsole();">
         Clear Console

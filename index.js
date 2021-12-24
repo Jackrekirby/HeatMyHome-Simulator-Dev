@@ -1,12 +1,12 @@
-(() => {
-    const console_log = window.console.log;
-    window.console.log = function (...args) {
-        console_log(...args);
-        var textarea = document.getElementById('my_console');
-        if (!textarea) return;
-        args.forEach(arg => textarea.value += `${JSON.stringify(arg)}\n`);
-    }
-})();
+// (() => {
+//     const console_log = window.console.log;
+//     window.console.log = function (...args) {
+//         console_log(...args);
+//         var textarea = document.getElementById('my_console');
+//         if (!textarea) return;
+//         args.forEach(arg => textarea.value += `${JSON.stringify(arg)}\n`);
+//     }
+// })();
 
 if (window.Worker) {
     var myWorker = new Worker('worker.js');
@@ -34,6 +34,7 @@ myWorker.onmessage = function (e) {
         document.getElementById('results').classList.remove("hide");
         console.log(output_json);
         draw_table(output_json);
+        createDownloadFile();
         //renderSimTable();
     } else {
         console.warn('Message from worker is not linked to any event: ', e.data);
@@ -239,8 +240,7 @@ function renderSimTable() {
         simtable.removeChild(simtable.lastChild);
     }
 
-    let groupbyopt = document.getElementById('groupby');
-    groupby_index = Number(groupbyopt.value);
+    let group_systems = document.getElementById('group-systems-input').checked;
 
     let sortbyopt = document.getElementById('sortby');
     sortby_index = Number(sortbyopt.value);
@@ -254,7 +254,7 @@ function renderSimTable() {
             "operational-emissions"];
 
         let sortname = sorts[sortby_index];
-        console.log(sortname);
+        //console.log(sortname);
 
         systems = output_json["systems"];
         let npcs = [];
@@ -268,103 +268,107 @@ function renderSimTable() {
                 case "ground-source-heat-pump":
                     for (const [solar_option, system] of Object.entries(heat_system)) {
                         npcs.push(system[sortname]);
-                        system_arr.push([heat_option, solar_option, system]);
+                        system_arr.push([heat_options_print[heat_option], solar_options_print[solar_option], system]);
                     }
                     break;
                 case "hydrogen-boiler":
                 case "hydrogen-fuel-cell":
                     for (const [h2_type, system] of Object.entries(heat_system)) {
                         npcs.push(system[sortname]);
-                        system_arr.push([heat_option, h2_type, system]);
+                        system_arr.push([heat_options_print[heat_option], h2_type[0].toUpperCase() + h2_type.substring(1), system]);
                     }
                     break;
                 default:
                     npcs.push(heat_system[sortname]);
-                    system_arr.push([heat_option, undefined, heat_system]);
+                    system_arr.push([heat_options_print[heat_option], undefined, heat_system]);
                     break;
             }
         }
 
-        console.log(npcs);
-        console.log(system_arr);
+        //console.log(npcs);
+        //console.log(system_arr);
         indexes = getSortIndices(npcs);
-        console.log(indexes);
+        //console.log("grouped_indexes", indexes);
 
-        for (let i of indexes) {
-            //console.log(i);
-            let tr = document.createElement('tr');
-            make_cell(tr, heat_options_print[system_arr[i][0]]);
-            make_cell(tr, solar_options_print[system_arr[i][1]]);
-            make_cells(tr, system_arr[i][2]);
-            simtable.appendChild(tr);
+        if (group_systems) {
+            let grouped_indexes = [[], [], [], [], [], [], []];
+            let first_indexes = [];
+            let firsts = [true, true, true, true, true, true];
+            for (let i of indexes) {
+                if (i < 7) {
+                    if (firsts[0]) { first_indexes.push(0); firsts[0] = false; }
+                    grouped_indexes[0].push(i);
+                } else if (i >= 7 && i < 14) {
+                    if (firsts[1]) { first_indexes.push(1); firsts[1] = false; }
+                    grouped_indexes[1].push(i);
+                } else if (i >= 14 && i < 21) {
+                    if (firsts[2]) { first_indexes.push(2); firsts[2] = false; }
+                    grouped_indexes[2].push(i);
+                } else if (i >= 21 && i < 24) {
+                    if (firsts[3]) { first_indexes.push(3); firsts[3] = false; }
+                    grouped_indexes[3].push(i);
+                } else if (i >= 24 && i < 27) {
+                    if (firsts[4]) { first_indexes.push(4); firsts[4] = false; }
+                    grouped_indexes[4].push(i);
+                } else if (i == 27) {
+                    if (firsts[5]) { first_indexes.push(5); firsts[5] = false; }
+                    grouped_indexes[5].push(27);
+                } else if (i == 28) {
+                    if (firsts[6]) { first_indexes.push(6); firsts[6] = false; }
+                    grouped_indexes[6].push(27);
+                }
+            }
+            //console.log("grouped_indexes: ", grouped_indexes);
+            //console.log("first_indexes: ", first_indexes);
+
+            let collapseGroupsEle = document.getElementById('collapse-groups-input');
+            let collapseGroups = collapseGroupsEle.checked;
+
+            if (collapseGroups) {
+                for (let j of first_indexes) {
+                    let i = grouped_indexes[j][0];
+                    let tr = document.createElement('tr');
+                    make_cell(tr, system_arr[i][0]);
+                    make_cell(tr, system_arr[i][1]);
+                    make_cells(tr, system_arr[i][2]);
+                    simtable.appendChild(tr);
+                };
+            } else {
+                for (let j of first_indexes) {
+                    for (let i of grouped_indexes[j]) {
+                        let tr = document.createElement('tr');
+                        make_cell(tr, system_arr[i][0]);
+                        make_cell(tr, system_arr[i][1]);
+                        make_cells(tr, system_arr[i][2]);
+                        simtable.appendChild(tr);
+                    }
+                };
+            }
+
+        } else {
+            for (let i of indexes) {
+                //console.log(i);
+                let tr = document.createElement('tr');
+                make_cell(tr, system_arr[i][0]);
+                make_cell(tr, system_arr[i][1]);
+                make_cells(tr, system_arr[i][2]);
+                simtable.appendChild(tr);
+            };
         }
+
     } else {
         draw_table(output_json);
     }
-
-
-    return;
-
-    let speci = 0;
-    switch (groupby_index) {
-        case 0:
-            speci = Array(21).keys();
-            output_json.sort(compare);
-            break;
-        case 1:
-            speci = [0, 7, 14];
-            //speci = Array(21).keys();
-            a = output_json.slice(0, 7).sort(compare);
-            b = output_json.slice(7, 14).sort(compare);
-            c = output_json.slice(14, 21).sort(compare);
-            output_json = a.concat(b, c);
-            break;
-        default: // 2
-            b = output_json;
-            output_json = [];
-            for (let ii of Array(7).keys()) {
-                let a = [b[ii], b[ii + 7], b[ii + 14]];
-                a.sort(compare);
-                //console.log(a);
-                output_json.push(a[0]);
-                output_json.push(a[1]);
-                output_json.push(a[2]);
-            }
-            speci = [0, 3, 6, 9, 12, 15, 18];
-        //part_json.sort(compare);
-    }
-
-    let collapseGroupsEle = document.getElementById('collapse-groups-input');
-    let collapseGroups = collapseGroupsEle.checked;
-    //console.log(collapseGroups);
-    if (!collapseGroups) {
-        speci = Array(21).keys();
-    }
-    // let part_json = [];
-    // for (let ii of speci) {
-    //     part_json.push(output_json[ii]);
-    // };
-    //console.log(output_json);
-
-    for (let ii of speci) {
-        //console.log(ii);
-        let tr = document.createElement('tr');
-        for (let value of output_json[ii]) {
-            let td = document.createElement('td');
-            td.innerHTML = value;
-            tr.appendChild(td);
-        }
-        simtable.appendChild(tr);
-    }
 }
 
-function updateGroupBy() {
-    let groupbyopt = document.getElementById('groupby');
-    groupby_index = Number(groupbyopt.value);
-    if (groupby_index == 0) {
-        document.getElementById('collapse-groups').classList.add("hide");;
+function updateGroupSystems() {
+    let group_systems = document.getElementById('group-systems-input').checked;
+
+    if (!group_systems) {
+        document.getElementById('collapse-groups-input').checked = false;
+        document.getElementById('collapse-groups-input').disabled = true;
     } else {
-        document.getElementById('collapse-groups').classList.remove("hide");;
+        document.getElementById('collapse-groups-input').disabled = false;
     }
     renderSimTable();
 }
@@ -393,7 +397,7 @@ function getSortIndices(array) {
         t.push(Number(array_with_index[i][0]));
         indexes.push(Number(array_with_index[i][1]));
     }
-    console.log(t);
+    //console.log(t);
     return indexes;
 }
 
@@ -512,11 +516,21 @@ let npc_years = 20;
 let cumulative_discount_rate = calculate_cumulative_discount_rate(discount_rate, npc_years);
 //console.log("cumulative_discount_rate:", cumulative_discount_rate);
 //draw_table(j);
-//clipboardJSON(j);
 // SIMULATION FUNCTIONS ===========================================================
+function createDownloadFile() {
+    let txt = JSON.stringify(output_json, null, 2);
+    var myBlob = new Blob([txt], { type: "text/plain" });
 
-function clipboardJSON(j) {
-    navigator.clipboard.writeText(JSON.stringify(j, null, 2));
+    var dlink = document.getElementById("download-link");
+    // (B) CREATE DOWNLOAD LINK
+    var url = window.URL.createObjectURL(myBlob);
+    dlink.href = url;
+    dlink.download = "heatninja.json";
+}
+
+function clipboardJSON() {
+    let txt = JSON.stringify(output_json, null, 2);
+    navigator.clipboard.writeText(txt);
 }
 
 function calculate_systems() {

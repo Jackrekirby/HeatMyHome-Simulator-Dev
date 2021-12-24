@@ -203,6 +203,10 @@ td {
   background-color: white;
 }
 
+#results button {
+    padding: 1rem;
+}
+
 @keyframes example {
 from {
   transform: rotate(0deg);
