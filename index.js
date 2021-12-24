@@ -18,7 +18,7 @@ if (window.Worker) {
     console.warn('Web Workers not supported');
 }
 
-var sim_string;
+var output_json;
 
 myWorker.onmessage = function (e) {
     //console.log('Message received from worker:', e);
@@ -30,9 +30,11 @@ myWorker.onmessage = function (e) {
         let runtime = ((end - e.data[2]) / 1000.0).toPrecision(3);
         console.log(`C++ Simulation Runtime: ${runtime}s`);
         document.getElementById('sim-runtime').innerHTML = runtime;
-        sim_string = e.data[1];
+        output_json = JSON.parse(e.data[1]);
         document.getElementById('results').classList.remove("hide");
-        renderSimTable();
+        console.log(output_json);
+        draw_table(output_json);
+        //renderSimTable();
     } else {
         console.warn('Message from worker is not linked to any event: ', e.data);
     }
@@ -230,19 +232,78 @@ function compare(a, b) {
 
 function renderSimTable() {
     //console.log(sim_string);
-    output_json = JSON.parse(sim_string);
     simtable = document.getElementById('sim-table');
-
-    let groupbyopt = document.getElementById('groupby');
-    groupby_index = Number(groupbyopt.value);
-
-    let sortbyopt = document.getElementById('sortby');
-    sortby_index = Number(sortbyopt.value) + 4;
 
     simtable = document.getElementById('sim-table');
     while (document.getElementsByTagName('tr').length > 1) {
         simtable.removeChild(simtable.lastChild);
     }
+
+    let groupbyopt = document.getElementById('groupby');
+    groupby_index = Number(groupbyopt.value);
+
+    let sortbyopt = document.getElementById('sortby');
+    sortby_index = Number(sortbyopt.value);
+
+    if (sortby_index > 0) {
+        let sorts = [
+            "none",
+            "operational-expenditure",
+            "capital-expenditure",
+            "net-present-cost",
+            "operational-emissions"];
+
+        let sortname = sorts[sortby_index];
+        console.log(sortname);
+
+        systems = output_json["systems"];
+        let npcs = [];
+        let system_arr = [];
+        for (let heat_option of heat_options_json) {
+            let heat_system = systems[heat_option];
+            //console.log(system, heat_option);
+            switch (heat_option) {
+                case "electric-boiler":
+                case "air-source-heat-pump":
+                case "ground-source-heat-pump":
+                    for (const [solar_option, system] of Object.entries(heat_system)) {
+                        npcs.push(system[sortname]);
+                        system_arr.push([heat_option, solar_option, system]);
+                    }
+                    break;
+                case "hydrogen-boiler":
+                case "hydrogen-fuel-cell":
+                    for (const [h2_type, system] of Object.entries(heat_system)) {
+                        npcs.push(system[sortname]);
+                        system_arr.push([heat_option, h2_type, system]);
+                    }
+                    break;
+                default:
+                    npcs.push(heat_system[sortname]);
+                    system_arr.push([heat_option, undefined, heat_system]);
+                    break;
+            }
+        }
+
+        console.log(npcs);
+        console.log(system_arr);
+        indexes = getSortIndices(npcs);
+        console.log(indexes);
+
+        for (let i of indexes) {
+            //console.log(i);
+            let tr = document.createElement('tr');
+            make_cell(tr, heat_options_print[system_arr[i][0]]);
+            make_cell(tr, solar_options_print[system_arr[i][1]]);
+            make_cells(tr, system_arr[i][2]);
+            simtable.appendChild(tr);
+        }
+    } else {
+        draw_table(output_json);
+    }
+
+
+    return;
 
     let speci = 0;
     switch (groupby_index) {
@@ -314,4 +375,170 @@ function updateSortBy() {
 
 function updateCollapseGroups() {
     renderSimTable();
+}
+
+// JSON OUTPUT =========================================================================================================================
+
+function getSortIndices(array) {
+    var array_with_index = [];
+    for (let i in array) {
+        array_with_index.push([array[i], i]);
+    }
+    array_with_index.sort(function (left, right) {
+        return left[0] < right[0] ? -1 : 1;
+    });
+    let indexes = [];
+    let t = [];
+    for (let i in array_with_index) {
+        t.push(Number(array_with_index[i][0]));
+        indexes.push(Number(array_with_index[i][1]));
+    }
+    console.log(t);
+    return indexes;
+}
+
+const heat_options_json = ["electric-boiler", "air-source-heat-pump",
+    "ground-source-heat-pump", "hydrogen-boiler", "hydrogen-fuel-cell",
+    "biomass-boiler", "gas-boiler"];
+
+const heat_options_print = {
+    "electric-boiler": "EleBo", "air-source-heat-pump": "ASHP",
+    "ground-source-heat-pump": "GSHP", "hydrogen-boiler": "H2Bo", "hydrogen-fuel-cell": "H2FC",
+    "biomass-boiler": "BioBo", "gas-boiler": "GasBo"
+};
+
+const solar_options_json = ["none", "photovoltaic",
+    "flat-plate", "evacuated-tube", "flat-plate-and-photovoltaic",
+    "evacuated-tube-and-photovoltaic", "photovoltaic-thermal-hybrid"];
+
+const solar_options_print = {
+    "none": "None", "photovoltaic": "PV",
+    "flat-plate": "FP", "evacuated-tube": "ET", "flat-plate-and-photovoltaic": "FP+PV",
+    "evacuated-tube-and-photovoltaic": "ET+PV", "photovoltaic-thermal-hybrid": "PVT"
+};
+
+//console.log(JSON.stringify(j));
+//document.getElementById("json-output").innerHTML = JSON.stringify(j, null, 2);
+
+function draw_table(j) {
+    const hydrogen_options_json = ["grey", "blue", "green"];
+
+    let table = document.getElementById('sim-table');
+    while (document.getElementsByTagName('tr').length > 1) {
+        table.removeChild(table.lastChild);
+    }
+
+    //console.log(table);
+    systems = j["systems"];
+    for (let heat_option of heat_options_json) {
+        let system = systems[heat_option];
+        //console.log(system, heat_option);
+        switch (heat_option) {
+            case "electric-boiler":
+            case "air-source-heat-pump":
+            case "ground-source-heat-pump":
+                for (const [solar_option, value] of Object.entries(system)) {
+                    let tr = document.createElement('tr');
+                    make_cell(tr, heat_options_print[heat_option]);
+                    make_cell(tr, solar_options_print[solar_option]);
+                    make_cells(tr, value);
+                    table.appendChild(tr);
+                }
+                break;
+            case "hydrogen-boiler":
+            case "hydrogen-fuel-cell":
+                for (const [h2_type, value] of Object.entries(system)) {
+                    let tr = document.createElement('tr');
+                    make_cell(tr, heat_options_print[heat_option]);
+                    make_cell(tr, h2_type[0].toUpperCase() + h2_type.substring(1));
+                    make_cells(tr, value);
+                    table.appendChild(tr);
+                }
+                break;
+            default:
+                let tr = document.createElement('tr');
+                make_cell(tr, heat_options_print[heat_option]);
+                make_cell(tr, undefined);
+                make_cells(tr, system);
+                table.appendChild(tr);
+                break;
+        }
+    }
+}
+
+function getPosition(string, subString, index) {
+    return string.split(subString, index).join(subString).length;
+}
+
+function make_cell(tr, value) {
+    //console.log("row", tr);
+    let td = document.createElement('td');
+    td.innerHTML = value == undefined ? '-' : value;
+    tr.appendChild(td);
+}
+
+function make_cells(tr, system) {
+    const headers = ["pv-size", "solar-thermal-size",
+        "thermal-energy-storage-volume", "operational-expenditure", "capital-expenditure",
+        "net-present-cost", "operational-emissions"];
+
+    for (let key of headers) {
+        switch (key) {
+            case "net-present-cost":
+                const net_present_cost = calculate_net_present_cost(
+                    system["operational-expenditure"],
+                    system["capital-expenditure"],
+                    cumulative_discount_rate);
+                make_cell(tr, Math.round(net_present_cost));
+                break;
+            case "operational-expenditure":
+                make_cell(tr, Math.round(system[key]));
+                break;
+            case "capital-expenditure":
+                make_cell(tr, Math.round(system[key]));
+                break;
+            case "operational-emissions":
+                make_cell(tr, Math.round(system[key] / 1000));
+                break;
+            default:
+                make_cell(tr, system[key]);
+        }
+    }
+    return tr;
+}
+
+const discount_rate = 1.035; // 3.5% standard for UK HMRC
+let npc_years = 20;
+let cumulative_discount_rate = calculate_cumulative_discount_rate(discount_rate, npc_years);
+//console.log("cumulative_discount_rate:", cumulative_discount_rate);
+//draw_table(j);
+//clipboardJSON(j);
+// SIMULATION FUNCTIONS ===========================================================
+
+function clipboardJSON(j) {
+    navigator.clipboard.writeText(JSON.stringify(j, null, 2));
+}
+
+function calculate_systems() {
+
+}
+
+function calculate_net_present_cost(opex, capex, cumulative_discount_rate) {
+    return capex + opex * cumulative_discount_rate;
+}
+
+function calculate_cumulative_discount_rate(discount_rate, npc_years) {
+    let discount_rate_current = 1;
+    let cumulative_discount_rate = 0;
+    for (let year = 0; year < npc_years; year++) {
+        cumulative_discount_rate += 1.0 / discount_rate_current;
+        discount_rate_current *= discount_rate;
+    }
+    return cumulative_discount_rate;
+}
+
+function updateLifetime() {
+    npc_years = document.getElementById('sim-lifetime').value;
+    cumulative_discount_rate = calculate_cumulative_discount_rate(discount_rate, npc_years);
+    draw_table(j);
 }

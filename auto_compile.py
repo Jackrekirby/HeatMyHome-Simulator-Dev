@@ -53,7 +53,7 @@ batch_file = 'archive\\call_empp.bat'
 # javascript file merge inputs
 js_merge_file = 'worker.js'
 js_files = ['worker_linker.js', web_file]
-just_js = False
+just_js = True
 
 # ____ AUTOMATED ________________________________________________________
 

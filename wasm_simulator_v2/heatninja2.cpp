@@ -176,8 +176,6 @@ namespace heatninja2 {
         }
         const std::array<std::string, 3> heat_options_json = { "electric-boiler", "air-source-heat-pump", "ground-source-heat-pump" };
         const std::array<std::string, 7> solar_options_json = { "none", "photovoltaic", "flat-plate", "evacuated-tube", "flat-plate-and-photovoltaic", "evacuated-tube-and-photovoltaic", "photovoltaic-thermal-hybrid" };
-        // electric-boiler":{"none":{"pv-size":14,"solar-thermal-size":2,"thermal-energy-storage-volume":0.1,"operational-expenditure":232,"capital-expenditure":679,"net-present-cost":4093,"operational-emissions":214},
-
         
         for (int i = 0; i < 21; ++i) {
             if (i % 7 == 0) {
@@ -203,9 +201,9 @@ namespace heatninja2 {
         std::string json_systems = calculate_hydrogen_gas_biomass_systems(yearly_erh_demand, yearly_hp_demand, epc_space_heating, cumulative_discount_rate, npc_years, grid_emissions);
 
         ss << json_systems << "}}";
-        std::cout << ss.str() << "\n";
-
-        return output_to_javascript(optimal_specifications);
+        //std::cout << ss.str() << "\n";
+        // output_to_javascript(optimal_specifications);
+        return ss.str();
     }
 
     std::string calculate_hydrogen_gas_biomass_systems(const float yearly_erh_demand, const float yearly_hp_demand, const int epc_space_heating, const float cumulative_discount_rate, const int npc_years, const int grid_emissions) {
@@ -269,9 +267,6 @@ namespace heatninja2 {
         const float blue_hydrogen_emissions_per_kwh = 60; // gCO2e / kWh, 60 middle value from SMR with CCS in parliament post
         const float green_hydrogen_emissions_per_kwh = 1875.0f * ( static_cast<float>(grid_emissions) / 1000.0f); // gCO2e / kWh,  1875 gCO2 / kWhe of grid in parliament post
         const float biomass_boiler_emissions_per_khw = 90; // 90gCO2 / kWh middle value from parliament post
-
-        std::cout << green_hydrogen_emissions_per_kwh << "\n";
-
 
         const float gas_boiler_emissions = yearly_boiler_demand * gas_emissions_per_kwh; 
         const float grey_hydrogen_boiler_emissions = yearly_boiler_demand * grey_hydrogen_emissions_per_kwh;

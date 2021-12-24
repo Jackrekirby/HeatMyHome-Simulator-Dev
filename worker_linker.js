@@ -1,10 +1,11 @@
 onmessage = function (e) {
     //console.log('Message received from main script. Message: ', e);
+    let start = performance.now();
     if (e.data[0] == "run simulation") {
         let result = submitSimulation(e.data[1]);
-        postMessage(["simulation complete", result]);
+        postMessage(["simulation complete", result, start]);
     } else if (e.data == "initiate") {
-        console.log('Worker Initiated');
+        postMessage(["initiation complete", last_updated]);
     }
     else {
         console.warn('Message to worker is not linked to any event: ', e.data);

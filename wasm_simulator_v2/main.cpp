@@ -1085,7 +1085,7 @@ void runSimulationWithDefaultParameters()
     bool output_all_specs = true;
     size_t output_file_index = 3;
     bool use_multithreading = true;
-    bool use_optimisation_surfaces = false;
+    bool use_optimisation_surfaces = true;
 #else
     bool output_demand = false;
     bool output_optimal_specs = false;
