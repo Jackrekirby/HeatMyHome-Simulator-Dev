@@ -4,4 +4,4 @@ This website simulates a range of domestic heating systems alongside solar photo
 
 The original simulator was written in Python, but has been rewritten in C++ for performance improvements and to allow the website to utilise Web Assembly. A Rust version has also been developed and compiled to WASM but was dropped due to poor performance on mobile iOS browsers.
 
-Find the website here: https://jackrekirby.github.io/wasm_website/
+Find the website here: https://jackrekirby.github.io/Heating-Simulator/
