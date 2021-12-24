@@ -1100,7 +1100,7 @@ void runSimulationWithDefaultParameters()
 #endif
     heatninja2::SimulationOptions simulation_options = { output_demand, output_optimal_specs, output_all_specs, output_file_index, use_multithreading, use_optimisation_surfaces };
     std::string java_script_output = heatninja2::run_simulation(thermostat_temperature, latitude, longitude, num_occupants, house_size, postcode, epc_space_heating, tes_volume_max, simulation_options);
-    std::cout << java_script_output << "\n";
+    //std::cout << java_script_output << "\n";
 #ifndef EM_COMPATIBLE
     t.stop();
 #endif

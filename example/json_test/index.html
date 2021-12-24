@@ -7,6 +7,15 @@
     <title>Document</title>
   </head>
   <body>
+    <div class="flex-row">
+      <p>System Lifetime (yrs)</p>
+      <input
+        id="sim-lifetime"
+        type="number"
+        value="20"
+        onchange="updateLifetime()"
+      />
+    </div>
     <table id="systems-table">
       <tr>
         <th>Heat Tech</th>
