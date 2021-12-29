@@ -10,28 +10,33 @@
   <body>
     <div class="main-page">
       <h1>Water & Space Heating Simulator</h1>
-      <p>v0.0.6</p>
+      <p>v0.0.7</p>
       <div class="input-block">
         <h2>Simulation Parameters</h2>
         <div class="flex-row">
           <p>Postcode</p>
-          <input id="sim-postcode" type="text" value="CV47AL" />
+          <input
+            id="sim-postcode"
+            type="text"
+            value=""
+            onchange="updatePostCodeFields();"
+          />
         </div>
         <div class="flex-row">
           <p>Latitude</p>
-          <input id="sim-latitude" type="number" value="52.3833" />
+          <input id="sim-latitude" type="number" value="" />
         </div>
         <div class="flex-row">
           <p>Longitude</p>
-          <input id="sim-longitude" type="number" value="-1.5833" />
+          <input id="sim-longitude" type="number" value="" />
         </div>
         <div class="flex-row">
           <p>Occupants</p>
-          <input id="sim-occupants" type="number" value="2" />
+          <input id="sim-occupants" type="number" value="" />
         </div>
         <div class="flex-row">
           <p>Thermostat Temp</p>
-          <input id="sim-temperature" type="number" value="20.0" />
+          <input id="sim-temperature" type="number" value="" />
         </div>
         <div class="flex-row">
           <p>Address</p>
@@ -42,18 +47,18 @@
             href="https://find-energy-certificate.digital.communities.gov.uk/find-a-certificate/search-by-postcode"
             >EPC Space Heating</a
           >
-          <input id="sim-space-heating" type="number" value="3000" />
+          <input id="sim-space-heating" type="number" value="" />
         </div>
         <div class="flex-row">
           <a
             href="https://find-energy-certificate.digital.communities.gov.uk/find-a-certificate/search-by-postcode"
             >Floor Area (m<sup>2</sup>)</a
           >
-          <input id="sim-floor-area" type="number" value="60.0" />
+          <input id="sim-floor-area" type="number" value="" />
         </div>
         <div class="flex-row">
           <p>TES Max (m<sup>3</sup>)</p>
-          <input id="sim-tes-max" type="number" value="0.5" />
+          <input id="sim-tes-max" type="number" value="" />
         </div>
         <div class="flex-row">
           <p>Use Surface Optimisation</p>
