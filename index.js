@@ -64,10 +64,10 @@ rustWorker.onmessage = function (e) {
 }
 
 // url parameters =====================================================================
-api_search = {
-    postcode: "CV47AL", latitude: 52.3833, longitude: -1.5833, occupants: 2,
-    temperature: 20.0, space_heating: 3000, floor_area: 60.0, tes_max: 0.5
-};
+// api_search = {
+//     postcode: "CV47AL", latitude: 52.3833, longitude: -1.5833, occupants: 2,
+//     temperature: 20.0, space_heating: 3000, floor_area: 60.0, tes_max: 0.5
+// };
 //loadURLParams();
 
 function loadDefaultParams() {
@@ -98,12 +98,26 @@ function loadDefaultParams() {
 
 loadDefaultParams();
 
-function updateURLParams() {
+function generateParamUrl() {
     search = Array();
-    for (const [key, value] of Object.entries(api_search)) {
+    const parameters = {
+        postcode: document.getElementById('sim-postcode').value,
+        'latitude': document.getElementById('sim-latitude').value,
+        'longitude': document.getElementById('sim-longitude').value,
+        'occupants': document.getElementById('sim-occupants').value,
+        'temperature': document.getElementById('sim-temperature').value,
+        'space_heating': document.getElementById('sim-space-heating').value,
+        'floor_area': document.getElementById('sim-floor-area').value,
+        'tes_max': document.getElementById('sim-tes-max').value,
+    };
+    for (const [key, value] of Object.entries(parameters)) {
         search.push(`${key}=${value}`);
     }
-    window.history.replaceState({}, '', `?${search.join('&')}`);
+    //console.log(parameters);
+    const url = location.protocol + '//' + location.host + location.pathname + `?${search.join('&')}`;
+    console.log('save parameters url: ', url);
+    navigator.clipboard.writeText(url);
+    //window.history.replaceState({}, '', `?${search.join('&')}`);
 }
 
 function loadURLParams() {
@@ -114,52 +128,56 @@ function loadURLParams() {
     postcode = urlParams.get('postcode');
     if (postcode != null) {
         document.getElementById('sim-postcode').value = postcode;
-        api_search.postcode = postcode;
+        //api_search.postcode = postcode;
     }
 
     latitude = urlParams.get('latitude');
     if (latitude != null) {
         document.getElementById('sim-latitude').value = latitude;
-        api_search.latitude = latitude;
+        //api_search.latitude = latitude;
     }
 
     longitude = urlParams.get('longitude');
     if (longitude != null) {
         document.getElementById('sim-longitude').value = longitude;
-        api_search.longitude = longitude;
+        //api_search.longitude = longitude;
     }
 
     occupants = urlParams.get('occupants');
     if (occupants != null) {
         document.getElementById('sim-occupants').value = occupants;
-        api_search.occupants = occupants;
+        //api_search.occupants = occupants;
     }
 
     temperature = urlParams.get('temperature');
     if (temperature != null) {
         document.getElementById('sim-temperature').value = temperature;
-        api_search.temperature = temperature;
+        //api_search.temperature = temperature;
     }
 
     space_heating = urlParams.get('space_heating');
     if (space_heating != null) {
         document.getElementById('sim-space-heating').value = space_heating;
-        api_search.space_heating = space_heating;
+        //api_search.space_heating = space_heating;
     }
 
     floor_area = urlParams.get('floor_area');
     if (floor_area != null) {
         document.getElementById('sim-floor-area').value = floor_area;
-        api_search.floor_area = floor_area;
+        //api_search.floor_area = floor_area;
     }
 
     tes_max = urlParams.get('tes_max');
     if (tes_max != null) {
         document.getElementById('sim-tes-max').value = tes_max;
-        api_search.tes_max = tes_max;
+        //api_search.tes_max = tes_max;
     }
-    updateURLParams();
+    // /?postcode=CV47AL&latitude=52.3833&longitude=-1.5833&occupants=2&temperature=20&space_heating=3000&floor_area=60&tes_max=0.5
+    window.history.replaceState({}, document.title, "/");
+    //updateURLParams();
 }
+
+loadURLParams();
 
 // simulation =============================================================================
 
@@ -620,12 +638,12 @@ function calculate_cumulative_discount_rate(discount_rate, npc_years) {
 function updateLifetime() {
     npc_years = document.getElementById('sim-lifetime').value;
     cumulative_discount_rate = calculate_cumulative_discount_rate(discount_rate, npc_years);
-    draw_table(j);
+    draw_table(output_json);
 }
 
 // WEBSCRAPING
-const epc_api_url = 'http://heatmyhomeninja-env.eba-w2gamium.us-east-2.elasticbeanstalk.com/';
-//const epc_api_url = 'http://localhost:3000/';
+//const epc_api_url = 'http://heatmyhomeninja-env.eba-w2gamium.us-east-2.elasticbeanstalk.com/';
+const epc_api_url = 'http://localhost:3000/';
 
 function findAddress() {
     const postcode = document.getElementById('sim-postcode').value;

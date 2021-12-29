@@ -10,7 +10,7 @@
   <body>
     <div class="main-page">
       <h1>Water & Space Heating Simulator</h1>
-      <p>v0.0.9</p>
+      <p>v0.0.10</p>
       <div class="input-block">
         <h2>Simulation Parameters</h2>
         <div class="flex-row">
@@ -73,11 +73,21 @@
           <p>Runtime (s)</p>
           <p id="sim-runtime">___</p>
         </div>
+        <button onclick="generateParamUrl();">Save Parameters</button>
       </div>
 
       <div id="results" class="hide">
         <button onclick="clipboardJSON();">Copy Results to Clipboard</button>
         <a id="download-link" href="test">Download</a>
+        <div class="flex-row">
+          <p>Lifetime (yrs)</p>
+          <input
+            id="sim-lifetime"
+            type="number"
+            value="20"
+            onchange="updateLifetime();"
+          />
+        </div>
         <div class="flex-row">
           <p>Sort By</p>
           <select name="sortby" id="sortby" onchange="updateSortBy()">
