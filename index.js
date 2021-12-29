@@ -624,8 +624,8 @@ function updateLifetime() {
 }
 
 // WEBSCRAPING
-//const epc_api_url = 'http://heatmyhomeninja-env.eba-w2gamium.us-east-2.elasticbeanstalk.com/';
-const epc_api_url = 'http://localhost:3000/';
+const epc_api_url = 'http://heatmyhomeninja-env.eba-w2gamium.us-east-2.elasticbeanstalk.com/';
+//const epc_api_url = 'http://localhost:3000/';
 
 function findAddress() {
     const postcode = document.getElementById('sim-postcode').value;
