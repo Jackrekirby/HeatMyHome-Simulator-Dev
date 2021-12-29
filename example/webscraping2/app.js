@@ -20,7 +20,7 @@ async function getAddresses(postcode) {
         let href = $(link).attr("href");
         if (href.startsWith('/energy-certificate')) {
             let address = $(link).text().trim();
-            const full_link = `${gov_partial_url}${href}`;
+            const full_link = `${href.split('e/')[1]}`;
             address_link_list.push([address, full_link]);
             console.log(address, full_link);
         }
@@ -46,11 +46,8 @@ async function getDataFromAddress(url) {
     let valid_until_node = $("#main-content > div > div.govuk-grid-column-two-thirds.epc-domestic-sections > div.govuk-body.epc-blue-bottom.printable-area.epc-box-container > div > div.epc-extra-boxes > p:nth-child(1) > b");
     let valid_until_txt = valid_until_node.text().trim();
     console.log('Valid Until: ', valid_until_txt);
+    return { 'floor-area': floor_area_txt, 'space-heating': epc_space_heating_txt, 'valid-until': valid_until_txt };
 }
-
-const address_link_list = await getAddresses('HP16 0LU');
-//console.log(address_link_list);
-getDataFromAddress(address_link_list[0][1]);
 
 function archive() {
     rp(url)
@@ -97,6 +94,37 @@ function archive() {
             console.log(err);
         });
 }
+
+import express from 'express';
+import cors from 'cors';
+
+const app = express();
+app.use(cors());
+app.options('*', cors());
+
+app.get('/', async (req, res) => {
+    //console.log(req, res);
+
+    const postcode = req.query.postcode;
+    console.log('postcode: ', postcode);
+    const certificate = req.query.certificate;
+    console.log('certificate: ', certificate);
+    if (postcode) {
+        const address_link_list = await getAddresses(postcode);
+        //console.log(address_link_list);
+        res.send(address_link_list);
+    } else if (certificate) {
+        const url_cert = 'https://find-energy-certificate.service.gov.uk/energy-certificate/' + certificate
+        const data = await getDataFromAddress(url_cert);
+        res.send(data);
+    } else {
+        res.send('No Request. ?postcode=CV57AA ?certificate=0774-2804-7261-2620-7941');
+    }
+})
+
+app.listen(3000, () =>
+    console.log('Example app listening on port 3000!'),
+);
 
 // const server = http.createServer((req, res) => {
 //     res.writeHead(200, { 'content-type': 'text/html' })
