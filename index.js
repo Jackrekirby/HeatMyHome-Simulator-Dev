@@ -111,7 +111,9 @@ function generateParamUrl() {
         'tes_max': document.getElementById('sim-tes-max').value,
     };
     for (const [key, value] of Object.entries(parameters)) {
-        search.push(`${key}=${value}`);
+        if (value) {
+            search.push(`${key}=${value}`);
+        }
     }
     //console.log(parameters);
     const url = location.protocol + '//' + location.host + location.pathname + `?${search.join('&')}`;
