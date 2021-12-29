@@ -175,7 +175,8 @@ function loadURLParams() {
         //api_search.tes_max = tes_max;
     }
     // /?postcode=CV47AL&latitude=52.3833&longitude=-1.5833&occupants=2&temperature=20&space_heating=3000&floor_area=60&tes_max=0.5
-    window.history.replaceState({}, document.title, "/");
+    const url = location.protocol + '//' + location.host + location.pathname;
+    window.history.replaceState({}, document.title, url);
     //updateURLParams();
 }
 
