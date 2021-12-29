@@ -586,7 +586,7 @@ function findAddress() {
     });
 }
 
-function getEpcData() {
+function getEpcData() { // comment
     let select = document.getElementById('sim-addresses');
     let certificate = select.options[select.selectedIndex].value;
     //console.log(certificate); // en

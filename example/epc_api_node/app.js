@@ -11,6 +11,7 @@ import cors from 'cors';
 // npm i cors
 // node app.js
 
+// https://expressjs.com/en/resources/middleware/cors.html
 let corsOptions = {
     origin: ['http://127.0.0.1:5501', 'https://jackrekirby.github.io/Heating-Simulator/'],
     optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
