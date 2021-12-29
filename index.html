@@ -10,7 +10,7 @@
   <body>
     <div class="main-page">
       <h1>Water & Space Heating Simulator</h1>
-      <p>v0.0.5</p>
+      <p>v0.0.6</p>
       <div class="input-block">
         <h2>Simulation Parameters</h2>
         <div class="flex-row">
@@ -33,7 +33,10 @@
           <p>Thermostat Temp</p>
           <input id="sim-temperature" type="number" value="20.0" />
         </div>
-
+        <div class="flex-row">
+          <p>Address</p>
+          <select id="sim-addresses" onchange="getEpcData()"></select>
+        </div>
         <div class="flex-row">
           <a
             href="https://find-energy-certificate.digital.communities.gov.uk/find-a-certificate/search-by-postcode"

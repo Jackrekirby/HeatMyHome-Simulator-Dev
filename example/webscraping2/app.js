@@ -122,6 +122,19 @@ app.get('/', async (req, res) => {
     }
 })
 
+async function test() {
+    const response = await fetch("https://epc.opendatacommunities.org/api/v1/display/search?postcode=HP16+0LU", {
+        method: "GET",
+        headers: {
+            Authorization: "Basic amFja3Jla2lyYnlAZ21haWwuY29tOmYyNDgzZDUxNGQ2NGUwZTQwN2U0ZWYxYzdjNjJiY2RkMmU3NzYyNWY=",
+        },
+    })
+    const txt = await response.text();
+    console.log(txt);
+}
+
+//test();
+
 app.listen(3000, () =>
     console.log('Example app listening on port 3000!'),
 );

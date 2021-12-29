@@ -142,11 +142,14 @@ document.getElementById('sim-postcode').addEventListener('change', (event) => {
             console.error(err);
             document.getElementById('sim-postcode').style.textDecorationLine = 'line-through';
         } else {
-            console.log(data);
+            console.log('postcode: ', data);
             document.getElementById('sim-latitude').value = data.result.latitude;
             document.getElementById('sim-longitude').value = data.result.longitude;
 
             document.getElementById('sim-postcode').style.textDecorationLine = 'none';
+
+            console.log('origin:', location.origin);
+            findAddress();
         }
     });
 });
@@ -555,4 +558,56 @@ function updateLifetime() {
     npc_years = document.getElementById('sim-lifetime').value;
     cumulative_discount_rate = calculate_cumulative_discount_rate(discount_rate, npc_years);
     draw_table(j);
+}
+
+// WEBSCRAPING
+
+function findAddress() {
+    const postcode = document.getElementById('sim-postcode').value;
+    getJSON(`http://localhost:3000/?postcode=${postcode}`, function (err, data) {
+        if (err != null) {
+            console.error(err);
+        } else {
+            console.log('addresses: ', data);
+            let element = document.getElementById('sim-addresses');
+            //console.log(document.getElementsByTagName('option').length);
+            while (element.getElementsByTagName('option').length > 0) {
+                element.removeChild(element.lastChild);
+            }
+            for (const [address, certificate] of data) {
+                //console.log(address, certificate);
+                let option_ele = document.createElement('option');
+                option_ele.value = certificate;
+                option_ele.text = address;
+                element.appendChild(option_ele);
+            }
+            getEpcData();
+        }
+    });
+}
+
+function getEpcData() {
+    let select = document.getElementById('sim-addresses');
+    let certificate = select.options[select.selectedIndex].value;
+    //console.log(certificate); // en
+    getJSON(`http://localhost:3000/?certificate=${certificate}`, function (err, data) {
+        if (err != null) {
+            console.error(err);
+        } else {
+            console.log('epc certificate: ', data);
+            if (data['space-heating']) {
+                const space_heating = data['space-heating'].match(/\d+/)[0];
+                document.getElementById('sim-space-heating').value = space_heating;
+            } else {
+                document.getElementById('sim-space-heating').value = null;
+            }
+            if (data['floor-area']) {
+                const floor_area = data['floor-area'].match(/\d+/)[0];
+                document.getElementById('sim-floor-area').value = floor_area;
+            } else {
+                document.getElementById('sim-floor-area').value = null;
+            }
+
+        }
+    });
 }
