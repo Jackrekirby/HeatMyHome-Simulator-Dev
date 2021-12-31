@@ -1,8 +1,7 @@
 console.log("hello");
 
-async function testpls() {
-    var email = 'skurendhand@gmail.com'
-    var apikey = '37bef2fc4f0a1cd6daf270ed886658e7adfe4c39'
+async function test1() {
+    // insert email and apikey
     var postcode = 'TW7 5LA'
     var base64encodedData = (email + ':' + apikey).toString('base64');
     const response = await fetch('https://epc.opendatacommunities.org/api/v1/domestic/search?postcode=' + postcode, {
@@ -12,10 +11,10 @@ async function testpls() {
         },
         json: true
     })
-
+    console.log(response);
     const json = await response.json()
 
     console.log(json);
 }
 
-testpls();
+test1();

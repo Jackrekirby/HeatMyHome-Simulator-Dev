@@ -641,7 +641,7 @@ function calculate_cumulative_discount_rate(discount_rate, npc_years) {
 function updateLifetime() {
     npc_years = document.getElementById('sim-lifetime').value;
     cumulative_discount_rate = calculate_cumulative_discount_rate(discount_rate, npc_years);
-    draw_table(output_json);
+    renderSimTable();
 }
 
 // WEBSCRAPING
