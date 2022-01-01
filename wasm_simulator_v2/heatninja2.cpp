@@ -208,7 +208,7 @@ namespace heatninja2 {
 
     std::string calculate_hydrogen_gas_biomass_systems(const float yearly_erh_demand, const float yearly_hp_demand, const int epc_space_heating, const float cumulative_discount_rate, const int npc_years, const int grid_emissions) {
         const float yearly_boiler_demand = yearly_erh_demand / 0.9f;
-        const float yearly_fuel_cell_demand = yearly_erh_demand / 0.94f;
+        const float yearly_fuel_cell_demand = yearly_hp_demand / 0.94f;
         
         // Hydrogen Boiler OPEX, CAPEX, NPC
         const float grey_hydrogen_cost = 0.049f; // 4.9p / kWh A greener gas grid : What are the options, lowest cost also more expensive than gas
@@ -258,10 +258,7 @@ namespace heatninja2 {
 
         const float boiler_demand_npc = yearly_erh_demand * cumulative_discount_rate; // £s
 
-        const float SPEC_NPC = 0, SPEC_EMISSIONS = 0;
-        const float npc_per_kwh = SPEC_NPC / boiler_demand_npc;
-        const float emissions_per_kwh = SPEC_EMISSIONS / yearly_erh_demand; // same for all spec and boilers ===============================================
-
+        // Emissions
         const float gas_emissions_per_kwh = 183; // // 183 gCO2e / kWh for UK natural gas
         const float grey_hydrogen_emissions_per_kwh = 382; // gCO2e / kWh, 382 middle value from SMR w / o CCS in parliament post
         const float blue_hydrogen_emissions_per_kwh = 60; // gCO2e / kWh, 60 middle value from SMR with CCS in parliament post
@@ -280,17 +277,7 @@ namespace heatninja2 {
         const float biomass_boiler_emissions = yearly_boiler_demand * biomass_boiler_emissions_per_khw; // 90gCO2 / kWh middle value from parliament post
 
         // format OPEX, CAPEX & NPC for hydrogen, gas & biomass boilers, and hydrogen fuel cells
-
         std::stringstream ss;
-        //ss << "[" << grey_hydrogen_boiler_opex << ", " << hydrogen_boiler_capex << ", " << grey_hydrogen_boiler_npc << "], [" <<
-        //    blue_hydrogen_boiler_opex << ", " << hydrogen_boiler_capex << ", " << blue_hydrogen_boiler_npc << "], [" <<
-        //    green_hydrogen_boiler_opex << ", " << hydrogen_boiler_capex << ", " << green_hydrogen_boiler_npc << "], [" <<  
-        //    grey_hydrogen_fuel_cell_opex << ", " << hydrogen_fuel_cell_capex << ", " << grey_hydrogen_fuel_cell_npc << "], [" <<
-        //    blue_hydrogen_fuel_cell_opex << ", " << hydrogen_fuel_cell_capex << ", " << blue_hydrogen_fuel_cell_npc << "], [" <<
-        //    green_hydrogen_fuel_cell_opex << ", " << hydrogen_fuel_cell_capex << ", " << green_hydrogen_fuel_cell_npc << "], [" <<
-        //    gas_boiler_opex << ", " << gas_boiler_capex << ", " << gas_boiler_npc << "], [" <<
-        //    biomass_opex << ", " << biomass_capex << ", " << biomass_npc << "]";
-
         ss << "\"hydrogen-boiler\":{";
         ss << "\"grey\":" << "{\"operational-expenditure\":" << grey_hydrogen_boiler_opex << ",\"capital-expenditure\":" << hydrogen_boiler_capex << ",\"net-present-cost\":" << grey_hydrogen_boiler_npc << ",\"operational-emissions\":" << grey_hydrogen_boiler_emissions << "},";
         ss << "\"blue\":" << "{\"operational-expenditure\":" << blue_hydrogen_boiler_opex << ",\"capital-expenditure\":" << hydrogen_boiler_capex << ",\"net-present-cost\":" << blue_hydrogen_boiler_npc << ",\"operational-emissions\":" << blue_hydrogen_boiler_emissions << "},";
