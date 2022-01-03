@@ -850,7 +850,8 @@ namespace heatninja2 {
         // user defined variables
         size_t x_size = static_cast<size_t>(tes_range), y_size = static_cast<size_t>(solar_size_range);
 
-        if (y_size > 1 && simulation_options.use_optimisation_surfaces) {
+        // only use surface optimisation for surfaces larger than 3 nodes along each dimension
+        if (x_size > 3 && y_size > 3 && simulation_options.use_optimisation_surfaces) {
             // non-user variables
             constexpr float unset_z = 3.40282e+038f; // if z has no been found yet it is set to max float value
             float min_z = unset_z; // record the current minimum z
@@ -916,7 +917,7 @@ namespace heatninja2 {
                     if (min_z_estimate < min_z) {
                         if (di == 1 && dj == 1) { // no more subdivision possible
                             // should not be possible to reach
-                            std::cout << "UNREACHABLE!\n";
+                            std::cout << "UNREACHABLE!\n"; // not is the starting surface is only 2xn so the 2 wide sur
                         }
                         else if (di == 1) { // rect only divisible along j
                             const size_t j12 = r.j1 + dj / 2;
@@ -987,7 +988,7 @@ namespace heatninja2 {
         }
 
         // brute force method ====================================================================================================
-
+        std::cout << "Inputs dont meeting requirements for surface optimisation. Falling back to iteration.\n";
         for (int solar_size = 0; solar_size < solar_size_range; ++solar_size) {
             for (int tes_option = 0; tes_option < tes_range; ++tes_option) {
                 calculate_optimal_tariff(hp_option, solar_option, solar_size, optimum_tes_npc, solar_maximum, tes_option, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);

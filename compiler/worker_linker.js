@@ -32,9 +32,15 @@ function submit_simulation(inputs) {
     }
 
     console.log("simulation arguments: ", arguments);
-    let result = Module.ccall('run_simulation', // name of C function
-        'string', // return type
-        ['string', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'bool'], // argument types
-        arguments); // arguments
-    return result;
+    try {
+        let result = Module.ccall('run_simulation', // name of C function
+            'string', // return type
+            ['string', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'bool'], // argument types
+            arguments); // arguments
+        return result;
+    }
+    catch (err) {
+        console.log("Simulation Failed");
+        return "";
+    }
 }
