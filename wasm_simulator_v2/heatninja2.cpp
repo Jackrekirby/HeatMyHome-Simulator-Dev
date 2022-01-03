@@ -780,9 +780,9 @@ namespace heatninja2 {
             return 1;
         case SolarOption::FP_PV:
         case SolarOption::ET_PV:
-            return solar_maximum / 2 - 1;
+            return std::min(solar_maximum / 2 - 1, 1);
         default:
-            return solar_maximum / 2;
+            return std::min(solar_maximum / 2, 1);
         }
     }
 

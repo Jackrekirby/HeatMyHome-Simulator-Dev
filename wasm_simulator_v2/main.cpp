@@ -1074,7 +1074,7 @@ void runSimulationWithDefaultParameters()
     std::string postcode = "CV4 7AL";
     int epc_space_heating = 3000;
     float house_size = 60.0f;
-    float tes_volume_max = 0.5f;
+    float tes_volume_max = 0.1f;
     float thermostat_temperature = 20.0f;
     const float latitude = 52.3833f;
     const float longitude = -1.5833f;
