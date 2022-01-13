@@ -6,7 +6,6 @@
     "rust_simulator.js",
     "rust_simulator.d.ts"
   ],
-  "module": "rust_simulator.js",
-  "types": "rust_simulator.d.ts",
-  "sideEffects": false
+  "main": "rust_simulator.js",
+  "types": "rust_simulator.d.ts"
 }

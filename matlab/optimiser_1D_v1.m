@@ -1,3 +1,4 @@
+%% 1D OPTIMISER VISUALISER, WORKING
 clear all;
 clc;
 

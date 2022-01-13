@@ -1,5 +1,7 @@
-
+let imports = {};
+imports['__wbindgen_placeholder__'] = module.exports;
 let wasm;
+const { TextDecoder, TextEncoder } = require(`util`);
 
 let cachedTextDecoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
 
@@ -28,8 +30,6 @@ function addHeapObject(obj) {
     const idx = heap_next;
     heap_next = heap[idx];
 
-    if (typeof(heap_next) !== 'number') throw new Error('corrupt heap');
-
     heap[idx] = obj;
     return idx;
 }
@@ -46,10 +46,6 @@ function takeObject(idx) {
     const ret = getObject(idx);
     dropObject(idx);
     return ret;
-}
-
-function _assertNum(n) {
-    if (typeof(n) !== 'number') throw new Error('expected a number argument');
 }
 
 let WASM_VECTOR_LEN = 0;
@@ -70,8 +66,6 @@ const encodeString = (typeof cachedTextEncoder.encodeInto === 'function'
 });
 
 function passStringToWasm0(arg, malloc, realloc) {
-
-    if (typeof(arg) !== 'string') throw new Error('expected a string argument');
 
     if (realloc === undefined) {
         const buf = cachedTextEncoder.encode(arg);
@@ -101,11 +95,26 @@ function passStringToWasm0(arg, malloc, realloc) {
         ptr = realloc(ptr, len, len = offset + arg.length * 3);
         const view = getUint8Memory0().subarray(ptr + offset, ptr + len);
         const ret = encodeString(arg, view);
-        if (ret.read !== arg.length) throw new Error('failed to pass whole string');
+
         offset += ret.written;
     }
 
     WASM_VECTOR_LEN = offset;
+    return ptr;
+}
+
+let cachegetFloat32Memory0 = null;
+function getFloat32Memory0() {
+    if (cachegetFloat32Memory0 === null || cachegetFloat32Memory0.buffer !== wasm.memory.buffer) {
+        cachegetFloat32Memory0 = new Float32Array(wasm.memory.buffer);
+    }
+    return cachegetFloat32Memory0;
+}
+
+function passArrayF32ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 4);
+    getFloat32Memory0().set(arg, ptr / 4);
+    WASM_VECTOR_LEN = arg.length;
     return ptr;
 }
 
@@ -125,15 +134,23 @@ function getInt32Memory0() {
 * @param {string} postcode
 * @param {number} epc_space_heating
 * @param {number} tes_volume_max
+* @param {Float32Array} agile_tariff_per_hour_over_year
+* @param {Float32Array} hourly_outside_temperatures_over_year
+* @param {Float32Array} hourly_solar_irradiances_over_year
 * @returns {string}
 */
-export function run_simulation(thermostat_temperature, latitude, longitude, num_occupants, house_size, postcode, epc_space_heating, tes_volume_max) {
+module.exports.run_simulation = function(thermostat_temperature, latitude, longitude, num_occupants, house_size, postcode, epc_space_heating, tes_volume_max, agile_tariff_per_hour_over_year, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        _assertNum(num_occupants);
         var ptr0 = passStringToWasm0(postcode, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len0 = WASM_VECTOR_LEN;
-        wasm.run_simulation(retptr, thermostat_temperature, latitude, longitude, num_occupants, house_size, ptr0, len0, epc_space_heating, tes_volume_max);
+        var ptr1 = passArrayF32ToWasm0(agile_tariff_per_hour_over_year, wasm.__wbindgen_malloc);
+        var len1 = WASM_VECTOR_LEN;
+        var ptr2 = passArrayF32ToWasm0(hourly_outside_temperatures_over_year, wasm.__wbindgen_malloc);
+        var len2 = WASM_VECTOR_LEN;
+        var ptr3 = passArrayF32ToWasm0(hourly_solar_irradiances_over_year, wasm.__wbindgen_malloc);
+        var len3 = WASM_VECTOR_LEN;
+        wasm.run_simulation(retptr, thermostat_temperature, latitude, longitude, num_occupants, house_size, ptr0, len0, epc_space_heating, tes_volume_max, ptr1, len1, ptr2, len2, ptr3, len3);
         var r0 = getInt32Memory0()[retptr / 4 + 0];
         var r1 = getInt32Memory0()[retptr / 4 + 1];
         return getStringFromWasm0(r0, r1);
@@ -141,106 +158,54 @@ export function run_simulation(thermostat_temperature, latitude, longitude, num_
         wasm.__wbindgen_add_to_stack_pointer(16);
         wasm.__wbindgen_free(r0, r1);
     }
-}
+};
 
-function logError(f, args) {
-    try {
-        return f.apply(this, args);
-    } catch (e) {
-        let error = (function () {
-            try {
-                return e instanceof Error ? `${e.message}\n\nStack:\n${e.stack}` : e.toString();
-            } catch(_) {
-                return "<failed to stringify thrown value>";
-            }
-        }());
-        console.error("wasm-bindgen: imported JS function that was not marked as `catch` threw an error:", error);
-        throw e;
-    }
-}
+module.exports.__wbindgen_string_new = function(arg0, arg1) {
+    var ret = getStringFromWasm0(arg0, arg1);
+    return addHeapObject(ret);
+};
 
-async function load(module, imports) {
-    if (typeof Response === 'function' && module instanceof Response) {
-        if (typeof WebAssembly.instantiateStreaming === 'function') {
-            try {
-                return await WebAssembly.instantiateStreaming(module, imports);
+module.exports.__wbindgen_object_drop_ref = function(arg0) {
+    takeObject(arg0);
+};
 
-            } catch (e) {
-                if (module.headers.get('Content-Type') != 'application/wasm') {
-                    console.warn("`WebAssembly.instantiateStreaming` failed because your server does not serve wasm with `application/wasm` MIME type. Falling back to `WebAssembly.instantiate` which is slower. Original error:\n", e);
+module.exports.__wbg_debug_f6147a62af5fb117 = function(arg0, arg1, arg2, arg3) {
+    console.debug(getObject(arg0), getObject(arg1), getObject(arg2), getObject(arg3));
+};
 
-                } else {
-                    throw e;
-                }
-            }
-        }
+module.exports.__wbg_error_cc38ce2b4b661e1d = function(arg0) {
+    console.error(getObject(arg0));
+};
 
-        const bytes = await module.arrayBuffer();
-        return await WebAssembly.instantiate(bytes, imports);
+module.exports.__wbg_error_8b4a1487636c965d = function(arg0, arg1, arg2, arg3) {
+    console.error(getObject(arg0), getObject(arg1), getObject(arg2), getObject(arg3));
+};
 
-    } else {
-        const instance = await WebAssembly.instantiate(module, imports);
+module.exports.__wbg_info_74a03c22e1fa6688 = function(arg0, arg1, arg2, arg3) {
+    console.info(getObject(arg0), getObject(arg1), getObject(arg2), getObject(arg3));
+};
 
-        if (instance instanceof WebAssembly.Instance) {
-            return { instance, module };
+module.exports.__wbg_log_3445347661d4505e = function(arg0) {
+    console.log(getObject(arg0));
+};
 
-        } else {
-            return instance;
-        }
-    }
-}
+module.exports.__wbg_log_ad41dbc3d891c2dc = function(arg0, arg1, arg2, arg3) {
+    console.log(getObject(arg0), getObject(arg1), getObject(arg2), getObject(arg3));
+};
 
-async function init(input) {
-    if (typeof input === 'undefined') {
-        input = new URL('rust_simulator_bg.wasm', import.meta.url);
-    }
-    const imports = {};
-    imports.wbg = {};
-    imports.wbg.__wbindgen_string_new = function(arg0, arg1) {
-        var ret = getStringFromWasm0(arg0, arg1);
-        return addHeapObject(ret);
-    };
-    imports.wbg.__wbg_debug_f6147a62af5fb117 = function() { return logError(function (arg0, arg1, arg2, arg3) {
-        console.debug(getObject(arg0), getObject(arg1), getObject(arg2), getObject(arg3));
-    }, arguments) };
-    imports.wbg.__wbg_error_cc38ce2b4b661e1d = function() { return logError(function (arg0) {
-        console.error(getObject(arg0));
-    }, arguments) };
-    imports.wbg.__wbg_error_8b4a1487636c965d = function() { return logError(function (arg0, arg1, arg2, arg3) {
-        console.error(getObject(arg0), getObject(arg1), getObject(arg2), getObject(arg3));
-    }, arguments) };
-    imports.wbg.__wbg_info_74a03c22e1fa6688 = function() { return logError(function (arg0, arg1, arg2, arg3) {
-        console.info(getObject(arg0), getObject(arg1), getObject(arg2), getObject(arg3));
-    }, arguments) };
-    imports.wbg.__wbg_log_3445347661d4505e = function() { return logError(function (arg0) {
-        console.log(getObject(arg0));
-    }, arguments) };
-    imports.wbg.__wbg_log_ad41dbc3d891c2dc = function() { return logError(function (arg0, arg1, arg2, arg3) {
-        console.log(getObject(arg0), getObject(arg1), getObject(arg2), getObject(arg3));
-    }, arguments) };
-    imports.wbg.__wbg_warn_c1cc594c33944c11 = function() { return logError(function (arg0, arg1, arg2, arg3) {
-        console.warn(getObject(arg0), getObject(arg1), getObject(arg2), getObject(arg3));
-    }, arguments) };
-    imports.wbg.__wbindgen_object_drop_ref = function(arg0) {
-        takeObject(arg0);
-    };
-    imports.wbg.__wbindgen_throw = function(arg0, arg1) {
-        throw new Error(getStringFromWasm0(arg0, arg1));
-    };
+module.exports.__wbg_warn_c1cc594c33944c11 = function(arg0, arg1, arg2, arg3) {
+    console.warn(getObject(arg0), getObject(arg1), getObject(arg2), getObject(arg3));
+};
 
-    if (typeof input === 'string' || (typeof Request === 'function' && input instanceof Request) || (typeof URL === 'function' && input instanceof URL)) {
-        input = fetch(input);
-    }
+module.exports.__wbindgen_throw = function(arg0, arg1) {
+    throw new Error(getStringFromWasm0(arg0, arg1));
+};
 
+const path = require('path').join(__dirname, 'rust_simulator_bg.wasm');
+const bytes = require('fs').readFileSync(path);
 
-
-    const { instance, module } = await load(await input, imports);
-
-    wasm = instance.exports;
-    init.__wbindgen_wasm_module = module;
-
-    return wasm;
-}
-
-export default init;
+const wasmModule = new WebAssembly.Module(bytes);
+const wasmInstance = new WebAssembly.Instance(wasmModule, imports);
+wasm = wasmInstance.exports;
+module.exports.__wasm = wasm;
 

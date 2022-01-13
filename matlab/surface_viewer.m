@@ -1,3 +1,4 @@
+% SURFACE VIEWER AND SAVER - FULLY WORKING
 clear all;
 i = 0;
 figure;

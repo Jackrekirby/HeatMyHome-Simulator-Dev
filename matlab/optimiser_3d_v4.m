@@ -1,3 +1,4 @@
+%% 3D OPTIMISER VISUALISER, WORKING
 clear all;
 clc;
 global b;

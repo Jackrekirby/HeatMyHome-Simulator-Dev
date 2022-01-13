@@ -1,7 +1,8 @@
+%% 3D OPTIMISER VISUALISER, WORKING BUT POSSIBLY BUGGY
 clear all;
 clc;
 
-for w = 152
+for w = 1
     data = readmatrix(sprintf("c_surfaces/%i.csv", w));
     %disp('imported');
 

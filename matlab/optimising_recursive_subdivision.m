@@ -1,3 +1,4 @@
+%% 3D PASS RATE - POINTS SEARCHED PLOTTER, WORKING
 clear all;
 clc;
 
@@ -22,7 +23,8 @@ for i = 1:length(e2)
     end
 end
 
-tiledlayout(1, 2);
+tl = tiledlayout(1, 2);
+title(tl, {"% Pass Rate and Points Searched For Different", "Starting Distributions and Gradient Factor Combinations"})
 nexttile;
 [X,Y] = meshgrid(sds, gf);
 X = X';
@@ -34,7 +36,7 @@ plot3(X(:), Y(:), p3, 'r.', 'MarkerSize', 20);
 hold off;
 xlabel('Start Distribution');
 ylabel('Gradient Factor');
-zlabel('Pass Rate');
+zlabel('% Pass Rate');
 zlim([90, 105]);
 
 nexttile;
@@ -44,7 +46,7 @@ plot3(X(:), Y(:), e2, 'r.', 'MarkerSize', 20);
 hold off;
 xlabel('Start Distribution');
 ylabel('Gradient Factor');
-zlabel('Efficiency');
+zlabel('% Total Points Searched');
 %zlim([5, inf]);
 
 %% 2D PLOT

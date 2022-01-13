@@ -1,3 +1,4 @@
+%% GRADIENT DESCENT ALGORITHM, WORKING
 clear all;
 clc;
 global b

@@ -1,3 +1,4 @@
+%% COLLECTION OF NON FUNCTIONAL CODE
 clear all
 clc
 
