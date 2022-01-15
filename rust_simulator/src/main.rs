@@ -2,7 +2,7 @@ use std::time::Instant;
 use std::fs::File;
 use std::io::{prelude::*, BufReader};
 use std::env;
-// use std::path::Path;
+use std::path::Path;
 
 mod heat_ninja;
 
@@ -13,9 +13,9 @@ fn import_file_data(assets_dir: String, latitude: f32, longitude: f32) -> ([f32;
     let path = env::current_dir().expect("Could not locate current directory");
     println!("The current directory is {}", path.display());
 
-    // let root = Path::new("C:/dev/wasm_website/rust_simulator");
-    // assert!(env::set_current_dir(&root).is_ok());
-    // println!("Successfully changed working directory to {}!", root.display());
+    let root = Path::new("C:/dev/wasm_website/rust_simulator");
+    assert!(env::set_current_dir(&root).is_ok());
+    println!("Successfully changed working directory to {}!", root.display());
 
     let import_weather_data = |filepath: String| -> [f32; 8760] {
         println!("filepath: {}", filepath);
@@ -64,7 +64,7 @@ fn run_simulation() {
         latitude,
         longitude,
         2,
-        60.0,
+        20.0,
         String::from("CV4 7AL"),
         3000.0,
         0.5,

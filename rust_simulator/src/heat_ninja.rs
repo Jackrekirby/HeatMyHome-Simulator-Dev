@@ -1841,6 +1841,7 @@ pub fn run_simulation (
         };
 
         let mut surface_optimiser = |x_size: usize, y_size: usize| {
+            // println!("SURFACE OPTIMISER");
             let mut min_z: f32 = f32::MAX;
             let mut max_mx: f32 = 0.0;
             let mut max_my: f32 = 0.0;
@@ -1868,7 +1869,7 @@ pub fn run_simulation (
                     if j >= range {break;}
                     i += step;
                 }
-                println!("{:?}", points);
+                // println!("Points: {:?}", points);
                 points
             };
 
@@ -1899,7 +1900,7 @@ pub fn run_simulation (
             // currently adjacent nodes not removed (they should be calculated and removed)
             let mut index_rects: Vec<Rect> = Vec::with_capacity(x_num_segments * y_num_segments);
 
-            println!("{}, {}, {:?}, {:?}", x_num_segments, y_num_segments, &is, &js);
+            // println!("Segs: {}, {}, is: {:?}, {:?}", x_num_segments, y_num_segments, &is, &js);
 
             for j in 0..y_num_segments {
                 for i in 0..x_num_segments {
@@ -1934,9 +1935,10 @@ pub fn run_simulation (
 
             while !index_rects.is_empty() {
                 let mut next_rects: Vec<Rect> = Vec::new();
+                // println!("Rect Group");
                 for r in &index_rects {
                     // calculate distance between indices
-                    // dbg!("{:?}", r);
+                    // println!("{:?}", r);
                     let di: usize = r.i2 - r.i1;
                     let dj: usize = r.j2 - r.j1;
                     let z11 = get_or_calculate(r.i1, r.j1, &mut min_z);
@@ -1975,22 +1977,25 @@ pub fn run_simulation (
                         let sub_j2: bool = r.j2 - j12 > 1;
 
                         // one of the dimensions must have a length > 1 if the rect is to be subdivided further
-                        if sub_i1 || sub_j1 { next_rects.push(Rect { i1: r.i1, i2: r.j1, j1: i12,  j2: j12 }) };
-                        if sub_i2 || sub_j1 { next_rects.push(Rect { i1: i12,  i2: r.j1, j1: r.i2, j2: j12 }) };
-                        if sub_i1 || sub_j2 { next_rects.push(Rect { i1: r.i1, i2: j12,  j1: i12,  j2: r.j2 }) };
-                        if sub_i2 || sub_j2 { next_rects.push(Rect { i1: i12,  i2: j12,  j1: r.i2, j2: r.j2 }) };
+                        if sub_i1 || sub_j1 { next_rects.push(Rect { i1: r.i1, j1: r.j1, i2: i12,  j2: j12 }) };
+                        if sub_i2 || sub_j1 { next_rects.push(Rect { i1: i12,  j1: r.j1, i2: r.i2, j2: j12 }) };
+                        if sub_i1 || sub_j2 { next_rects.push(Rect { i1: r.i1, j1: j12,  i2: i12,  j2: r.j2 }) };
+                        if sub_i2 || sub_j2 { next_rects.push(Rect { i1: i12,  j1: j12,  i2: r.i2, j2: r.j2 }) };
                     }
                 }
                 index_rects = next_rects;
             }
         };
 
-        surface_optimiser(solar_size_range as usize, tes_range as usize);
-
-        for solar_size in 0..solar_size_range {
-            for tes_option in 0..tes_range {
-                let _min_tariff_net_present_cost: f32 =
-                    find_optimal_specification(optimal_specification, solar_size, tes_option);
+        let use_surface_optimisation: bool = true;
+        if solar_size_range > 1 && use_surface_optimisation {
+            surface_optimiser(solar_size_range as usize, tes_range as usize);
+        } else {
+            for solar_size in 0..solar_size_range {
+                for tes_option in 0..tes_range {
+                    let _min_tariff_net_present_cost: f32 =
+                        find_optimal_specification(optimal_specification, solar_size, tes_option);
+                }
             }
         }
     };

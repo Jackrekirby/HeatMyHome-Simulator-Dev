@@ -780,9 +780,9 @@ namespace heatninja2 {
             return 1;
         case SolarOption::FP_PV:
         case SolarOption::ET_PV:
-            return std::min(solar_maximum / 2 - 1, 1);
+            return std::max(solar_maximum / 2 - 1, 1);
         default:
-            return std::min(solar_maximum / 2, 1);
+            return std::max(solar_maximum / 2, 1);
         }
     }
 
@@ -849,7 +849,7 @@ namespace heatninja2 {
         int target_step = 7;
         // user defined variables
         size_t x_size = static_cast<size_t>(tes_range), y_size = static_cast<size_t>(solar_size_range);
-
+        std::cout << "tes_range: " << tes_range << ", solar_size_range: " << solar_size_range << '\n';
         // only use surface optimisation for surfaces larger than 3 nodes along each dimension
         if (x_size > 3 && y_size > 3 && simulation_options.use_optimisation_surfaces) {
             // non-user variables

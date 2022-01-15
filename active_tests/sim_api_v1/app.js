@@ -26,7 +26,7 @@ app.get('/', async (req, res) => {
         const t0 = performance.now();
 
         //const result = '[1, 2, 3, 4]';
-        const result = await submit_simulation(postcode, latitude, longitude, 2, 60, 20, 3000, 0.5);
+        const result = await submit_simulation(postcode, latitude, longitude, 2, 360, 20, 3000, 3.0);
         const t1 = performance.now();
         console.log(`Time: ${t1 - t0} milliseconds.`);
         res.send({ 'result': JSON.parse(result), 'inputs': { 'postcode': postcode, 'latitude': latitude, 'longitude': longitude } });
