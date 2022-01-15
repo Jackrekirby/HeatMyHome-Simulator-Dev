@@ -1,3 +1,5 @@
+use std::cmp;
+
 #[cfg(not(target_family = "wasm"))]
 use rayon::prelude::*;
 #[cfg(target_family = "wasm")]
@@ -30,6 +32,7 @@ pub fn run_simulation (
         log::info!("Some info");
         log::error!("Error message");
     }
+
     // input arguments:
     /*
         thermostat_temperature
@@ -974,7 +977,7 @@ pub fn run_simulation (
 
     let grid_emissions: f32 = 212.0;
 
-    let print_vars = true;
+    let print_vars = false;
     if print_vars {
         println!("latitude: {:?}", latitude);
         println!("thermostat_temperature: {:?}", thermostat_temperature);
@@ -1148,7 +1151,7 @@ pub fn run_simulation (
     let simulate_heat_solar_combination = |optimal_specification: &mut SystemSpecification| {
         let heat_option = optimal_specification.heat_option;
         let solar_option = optimal_specification.solar_option;
-        println!("{:?} {:?}", heat_option, solar_option);
+        // println!("{:?} {:?}", heat_option, solar_option);
         let hourly_thermostat_temperatures: &[f32; 24] = match heat_option {
             HeatOption::AirSourceHeatPump | HeatOption::GroundSourceHeatPump => {
                 &hourly_hp_thermostat_temperatures
@@ -1837,6 +1840,153 @@ pub fn run_simulation (
             min_tariff_net_present_cost
         };
 
+        let mut surface_optimiser = |x_size: usize, y_size: usize| {
+            let mut min_z: f32 = f32::MAX;
+            let mut max_mx: f32 = 0.0;
+            let mut max_my: f32 = 0.0;
+
+            let z_size = x_size * y_size;
+            let mut zs: Vec<f32> = Vec::with_capacity(z_size);
+            for _ in 0..z_size {
+                zs.push(f32::MAX);
+            }
+
+            let min_step: usize = 3;
+            let target_step: usize = 7;
+            let gradient_factor: f32 = 0.15;
+
+            let x_num_segments = cmp::max(x_size / target_step, min_step);
+            let y_num_segments = cmp::max(y_size / target_step, min_step);
+
+            let linearly_space = | range: usize, num_segments: usize | -> Vec<usize> {
+                let mut points: Vec<usize> = Vec::with_capacity(num_segments + 1);
+                let step: f32 = (range as f32) / (num_segments as f32);
+                let mut i: f32 = 0.0;
+                loop {
+                    let j: usize = i.round() as usize;
+                    points.push(j);
+                    if j >= range {break;}
+                    i += step;
+                }
+                println!("{:?}", points);
+                points
+            };
+
+            // calculate initial points to search on surface
+            let is: Vec<usize> = linearly_space(x_size - 1, x_num_segments);
+            let js: Vec<usize> = linearly_space(y_size - 1, y_num_segments);
+
+            #[derive(Debug)]
+            struct Rect {
+                i1: usize,
+                i2: usize,
+                j1: usize,
+                j2: usize,
+            }
+
+            let mut get_or_calculate = |i: usize, j: usize, min_z: &mut f32| -> f32 {
+                let k: usize = i + j * x_size;
+                if zs[k] == f32::MAX {
+                    find_optimal_specification(optimal_specification, i as u16, j as u8);
+                    let z = optimal_specification.net_present_cost;
+                    if z < *min_z { *min_z = z };
+                    zs[k] = z;
+                }
+                zs[k]
+            };
+
+             // combine 1D x and y indices into a 2D mesh
+            // currently adjacent nodes not removed (they should be calculated and removed)
+            let mut index_rects: Vec<Rect> = Vec::with_capacity(x_num_segments * y_num_segments);
+
+            println!("{}, {}, {:?}, {:?}", x_num_segments, y_num_segments, &is, &js);
+
+            for j in 0..y_num_segments {
+                for i in 0..x_num_segments {
+                    index_rects.push(Rect {
+                        i1: is[i],
+                        i2: is[i+1],
+                        j1: js[j],
+                        j2: js[j+1]
+                    });
+                }
+            }
+
+            // calculate z for each position and set the min_z and steepest gradient for x & y
+            for r in &index_rects {
+                let z11 = get_or_calculate(r.i1, r.j1, &mut min_z);
+                let z21 = get_or_calculate(r.i2, r.j1, &mut min_z);
+                let z12 = get_or_calculate(r.i1, r.j2, &mut min_z);
+                let z22 = get_or_calculate(r.i2, r.j2, &mut min_z);
+
+                let mx: f32 = ((z11 - z21) / ((r.i2 - r.i1) as f32)).abs();
+                let my: f32 = ((z11 - z12) / ((r.j2 - r.j1) as f32)).abs();
+                if mx > max_mx { max_mx = mx };
+                if my > max_my { max_my = my };
+
+                let mx: f32 = ((z22 - z21) / ((r.i2 - r.i1) as f32)).abs();
+                let my: f32 = ((z22 - z12) / ((r.j2 - r.j1) as f32)).abs();
+                if mx > max_mx { max_mx = mx };
+                if my > max_my { max_my = my };
+            }
+            max_mx *= gradient_factor;
+            max_my *= gradient_factor;
+
+            while !index_rects.is_empty() {
+                let mut next_rects: Vec<Rect> = Vec::new();
+                for r in &index_rects {
+                    // calculate distance between indices
+                    // dbg!("{:?}", r);
+                    let di: usize = r.i2 - r.i1;
+                    let dj: usize = r.j2 - r.j1;
+                    let z11 = get_or_calculate(r.i1, r.j1, &mut min_z);
+                    let z21 = get_or_calculate(r.i2, r.j1, &mut min_z);
+                    let z12 = get_or_calculate(r.i1, r.j2, &mut min_z);
+                    let z22 = get_or_calculate(r.i2, r.j2, &mut min_z);
+
+                    // get node with lowest npc
+                    let min_local_z: f32 = {
+                        let mut m: f32 = z11;
+                        if z21 < m { m = z21 };
+                        if z12 < m { m = z12 };
+                        if z22 < m { m = z22 };
+                        m
+                    };
+
+                    // estimate minimum npc between nodes
+                    let min_z_estimate: f32 = min_local_z - (max_mx * (di as f32) + max_my * (dj as f32));
+                    // if segment could have npc lower than the current min subdivide
+                    if min_z_estimate < min_z {
+                        // subdivide segments that can be divided further, otherwise leave at unit length
+                        let i12: usize = if di == 1 {r.i2} else {r.i1 + di / 2};
+                        if i12 != r.i2 {
+                            get_or_calculate(i12, r.j1, &mut min_z);
+                            get_or_calculate(i12, r.j1, &mut min_z);
+                        }
+                        let j12: usize = if dj == 1 {r.j2} else {r.j1 + dj / 2};
+                        if j12 != r.j2 {
+                            get_or_calculate(r.i1, j12, &mut min_z);
+                            get_or_calculate(r.i2, j12, &mut min_z);
+                        }
+
+                        let sub_i1: bool = i12 - r.i1 > 1;
+                        let sub_i2: bool = r.i2 - i12 > 1;
+                        let sub_j1: bool = j12 - r.j1 > 1;
+                        let sub_j2: bool = r.j2 - j12 > 1;
+
+                        // one of the dimensions must have a length > 1 if the rect is to be subdivided further
+                        if sub_i1 || sub_j1 { next_rects.push(Rect { i1: r.i1, i2: r.j1, j1: i12,  j2: j12 }) };
+                        if sub_i2 || sub_j1 { next_rects.push(Rect { i1: i12,  i2: r.j1, j1: r.i2, j2: j12 }) };
+                        if sub_i1 || sub_j2 { next_rects.push(Rect { i1: r.i1, i2: j12,  j1: i12,  j2: r.j2 }) };
+                        if sub_i2 || sub_j2 { next_rects.push(Rect { i1: i12,  i2: j12,  j1: r.i2, j2: r.j2 }) };
+                    }
+                }
+                index_rects = next_rects;
+            }
+        };
+
+        surface_optimiser(solar_size_range as usize, tes_range as usize);
+
         for solar_size in 0..solar_size_range {
             for tes_option in 0..tes_range {
                 let _min_tariff_net_present_cost: f32 =
@@ -1845,11 +1995,11 @@ pub fn run_simulation (
         }
     };
 
-    #[cfg(target_family = "wasm")] // multi-threaded
+    #[cfg(target_family = "wasm")] // single-threaded
     optimal_specifications.iter_mut()
     .for_each(|optimal_specification| simulate_heat_solar_combination(optimal_specification));
 
-    #[cfg(not(target_family = "wasm"))] // single-threaded
+    #[cfg(not(target_family = "wasm"))] // multi-threaded
     optimal_specifications.par_iter_mut()
     .for_each(|optimal_specification| simulate_heat_solar_combination(optimal_specification));
 
