@@ -3,6 +3,7 @@ extern crate web_sys;
 
 // to build call: wasm-pack build --target web
 // wasm-pack build --debug --target web
+// wasm-pack build --target nodejs
 // A macro to provide `println!(..)`-style syntax for `console.log` logging.
 macro_rules! println {
     ( $( $t:tt )* ) => {
@@ -25,9 +26,18 @@ pub fn run_simulation(
     agile_tariff_per_hour_over_year: &[f32],
     hourly_outside_temperatures_over_year: &[f32],
     hourly_solar_irradiances_over_year: &[f32],
-) -> String
-{
-    println!("{}, {}, {}, {}, {}, {}, {}, {}", thermostat_temperature, latitude, longitude, num_occupants, house_size, postcode, epc_space_heating, tes_volume_max);
+) -> String {
+    println!(
+        "{}, {}, {}, {}, {}, {}, {}, {}",
+        thermostat_temperature,
+        latitude,
+        longitude,
+        num_occupants,
+        house_size,
+        postcode,
+        epc_space_heating,
+        tes_volume_max
+    );
     heat_ninja::run_simulation(
         thermostat_temperature,
         latitude,
@@ -39,6 +49,6 @@ pub fn run_simulation(
         tes_volume_max,
         &agile_tariff_per_hour_over_year,
         &hourly_outside_temperatures_over_year,
-        &hourly_solar_irradiances_over_year
+        &hourly_solar_irradiances_over_year,
     )
 }

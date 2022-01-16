@@ -1,5 +1,3 @@
-use std::cmp;
-
 #[cfg(not(target_family = "wasm"))]
 use rayon::prelude::*;
 #[cfg(target_family = "wasm")]
@@ -12,7 +10,7 @@ macro_rules! println {
     }
 }
 
-pub fn run_simulation (
+pub fn run_simulation(
     thermostat_temperature: f32,
     latitude: f32,
     longitude: f32,
@@ -25,14 +23,6 @@ pub fn run_simulation (
     hourly_outside_temperatures_over_year: &[f32],
     hourly_solar_irradiances_over_year: &[f32],
 ) -> String {
-    #[cfg(target_family = "wasm")]
-    {
-        wasm_logger::init(wasm_logger::Config::default());
-        // Logging
-        log::info!("Some info");
-        log::error!("Error message");
-    }
-
     // input arguments:
     /*
         thermostat_temperature
@@ -206,179 +196,180 @@ pub fn run_simulation (
             }
         }
 
-        let regions: [Region; 171] = { [
-            Region::new(String::from("ZE"), 0, 0, 20),
-            Region::new(String::from("YO25"), 0, 0, 11),
-            Region::new(String::from("ZE"), 0, 0, 20),
-            Region::new(String::from("YO25"), 0, 0, 11),
-            Region::new(String::from("YO"), 15, 16, 11),
-            Region::new(String::from("YO"), 0, 0, 10),
-            Region::new(String::from("WV"), 0, 0, 6),
-            Region::new(String::from("WS"), 0, 0, 6),
-            Region::new(String::from("WR"), 0, 0, 6),
-            Region::new(String::from("WN"), 0, 0, 7),
-            Region::new(String::from("WF"), 0, 0, 11),
-            Region::new(String::from("WD"), 0, 0, 1),
-            Region::new(String::from("WC"), 0, 0, 1),
-            Region::new(String::from("WA"), 0, 0, 7),
-            Region::new(String::from("W"), 0, 0, 1),
-            Region::new(String::from("UB"), 0, 0, 1),
-            Region::new(String::from("TW"), 0, 0, 1),
-            Region::new(String::from("TS"), 0, 0, 10),
-            Region::new(String::from("TR"), 0, 0, 4),
-            Region::new(String::from("TQ"), 0, 0, 4),
-            Region::new(String::from("TN"), 0, 0, 2),
-            Region::new(String::from("TF"), 0, 0, 6),
-            Region::new(String::from("TD15"), 0, 0, 9),
-            Region::new(String::from("TD12"), 0, 0, 9),
-            Region::new(String::from("TD"), 0, 0, 9),
-            Region::new(String::from("TA"), 0, 0, 5),
-            Region::new(String::from("SY"), 15, 25, 13),
-            Region::new(String::from("SY14"), 0, 0, 7),
-            Region::new(String::from("SY"), 0, 0, 6),
-            Region::new(String::from("SW"), 0, 0, 1),
-            Region::new(String::from("ST"), 0, 0, 6),
-            Region::new(String::from("SS"), 0, 0, 12),
-            Region::new(String::from("SR"), 7, 8, 10),
-            Region::new(String::from("SR"), 0, 0, 9),
-            Region::new(String::from("SP"), 6, 11, 3),
-            Region::new(String::from("SP"), 0, 0, 5),
-            Region::new(String::from("SO"), 0, 0, 3),
-            Region::new(String::from("SN7"), 0, 0, 1),
-            Region::new(String::from("SN"), 0, 0, 5),
-            Region::new(String::from("SM"), 0, 0, 1),
-            Region::new(String::from("SL"), 0, 0, 1),
-            Region::new(String::from("SK"), 22, 23, 6),
-            Region::new(String::from("SK17"), 0, 0, 6),
-            Region::new(String::from("SK13"), 0, 0, 6),
-            Region::new(String::from("SK"), 0, 0, 7),
-            Region::new(String::from("SG"), 0, 0, 1),
-            Region::new(String::from("SE"), 0, 0, 1),
-            Region::new(String::from("SA"), 61, 73, 13),
-            Region::new(String::from("SA"), 31, 48, 13),
-            Region::new(String::from("SA"), 14, 20, 13),
-            Region::new(String::from("SA"), 0, 0, 5),
-            Region::new(String::from("S"), 40, 45, 6),
-            Region::new(String::from("S"), 32, 33, 6),
-            Region::new(String::from("S18"), 0, 0, 6),
-            Region::new(String::from("S"), 0, 0, 11),
-            Region::new(String::from("RM"), 0, 0, 12),
-            Region::new(String::from("RH"), 10, 20, 2),
-            Region::new(String::from("RH"), 0, 0, 1),
-            Region::new(String::from("RG"), 21, 29, 3),
-            Region::new(String::from("RG"), 0, 0, 1),
-            Region::new(String::from("PR"), 0, 0, 7),
-            Region::new(String::from("PO"), 18, 22, 2),
-            Region::new(String::from("PO"), 0, 0, 3),
-            Region::new(String::from("PL"), 0, 0, 4),
-            Region::new(String::from("PH50"), 0, 0, 14),
-            Region::new(String::from("PH49"), 0, 0, 14),
-            Region::new(String::from("PH"), 30, 44, 17),
-            Region::new(String::from("PH26"), 0, 0, 16),
-            Region::new(String::from("PH"), 19, 25, 17),
-            Region::new(String::from("PH"), 0, 0, 15),
-            Region::new(String::from("PE"), 20, 25, 11),
-            Region::new(String::from("PE"), 9, 12, 11),
-            Region::new(String::from("PE"), 0, 0, 12),
-            Region::new(String::from("PA"), 0, 0, 14),
-            Region::new(String::from("OX"), 0, 0, 1),
-            Region::new(String::from("OL"), 0, 0, 7),
-            Region::new(String::from("NW"), 0, 0, 1),
-            Region::new(String::from("NR"), 0, 0, 12),
-            Region::new(String::from("NP8"), 0, 0, 13),
-            Region::new(String::from("NP"), 0, 0, 5),
-            Region::new(String::from("NN"), 0, 0, 6),
-            Region::new(String::from("NG"), 0, 0, 11),
-            Region::new(String::from("NE"), 0, 0, 9),
-            Region::new(String::from("N"), 0, 0, 1),
-            Region::new(String::from("ML"), 0, 0, 14),
-            Region::new(String::from("MK"), 0, 0, 1),
-            Region::new(String::from("ME"), 0, 0, 2),
-            Region::new(String::from("M"), 0, 0, 7),
-            Region::new(String::from("LU"), 0, 0, 1),
-            Region::new(String::from("LS24"), 0, 0, 10),
-            Region::new(String::from("LS"), 0, 0, 11),
-            Region::new(String::from("LN"), 0, 0, 11),
-            Region::new(String::from("LL"), 30, 78, 13),
-            Region::new(String::from("LL"), 23, 27, 13),
-            Region::new(String::from("LL"), 0, 0, 7),
-            Region::new(String::from("LE"), 0, 0, 6),
-            Region::new(String::from("LD"), 0, 0, 13),
-            Region::new(String::from("LA"), 7, 23, 8),
-            Region::new(String::from("LA"), 0, 0, 7),
-            Region::new(String::from("L"), 0, 0, 7),
-            Region::new(String::from("KY"), 0, 0, 15),
-            Region::new(String::from("KW"), 15, 17, 19),
-            Region::new(String::from("KW"), 0, 0, 17),
-            Region::new(String::from("KT"), 0, 0, 1),
-            Region::new(String::from("KA"), 0, 0, 14),
-            Region::new(String::from("IV36"), 0, 0, 16),
-            Region::new(String::from("IV"), 30, 32, 16),
-            Region::new(String::from("IV"), 0, 0, 17),
-            Region::new(String::from("IP"), 0, 0, 12),
-            Region::new(String::from("IG"), 0, 0, 12),
-            Region::new(String::from("HX"), 0, 0, 11),
-            Region::new(String::from("HU"), 0, 0, 11),
-            Region::new(String::from("HS"), 0, 0, 18),
-            Region::new(String::from("HR"), 0, 0, 6),
-            Region::new(String::from("HP"), 0, 0, 1),
-            Region::new(String::from("HG"), 0, 0, 10),
-            Region::new(String::from("HD"), 0, 0, 11),
-            Region::new(String::from("HA"), 0, 0, 1),
-            Region::new(String::from("GU"), 51, 52, 3),
-            Region::new(String::from("GU46"), 0, 0, 3),
-            Region::new(String::from("GU"), 30, 35, 3),
-            Region::new(String::from("GU"), 28, 29, 2),
-            Region::new(String::from("GU14"), 0, 0, 3),
-            Region::new(String::from("GU"), 11, 12, 3),
-            Region::new(String::from("GU"), 0, 0, 1),
-            Region::new(String::from("GL"), 0, 0, 5),
-            Region::new(String::from("G"), 0, 0, 14),
-            Region::new(String::from("FY"), 0, 0, 7),
-            Region::new(String::from("FK"), 0, 0, 14),
-            Region::new(String::from("EX"), 0, 0, 4),
-            Region::new(String::from("EN9"), 0, 0, 12),
-            Region::new(String::from("EN"), 0, 0, 1),
-            Region::new(String::from("EH"), 43, 46, 9),
-            Region::new(String::from("EH"), 0, 0, 15),
-            Region::new(String::from("EC"), 0, 0, 1),
-            Region::new(String::from("E"), 0, 0, 1),
-            Region::new(String::from("DY"), 0, 0, 6),
-            Region::new(String::from("DT"), 0, 0, 3),
-            Region::new(String::from("DN"), 0, 0, 11),
-            Region::new(String::from("DL"), 0, 0, 10),
-            Region::new(String::from("DH"), 4, 5, 9),
-            Region::new(String::from("DH"), 0, 0, 10),
-            Region::new(String::from("DG"), 0, 0, 8),
-            Region::new(String::from("DE"), 0, 0, 6),
-            Region::new(String::from("DD"), 0, 0, 15),
-            Region::new(String::from("DA"), 0, 0, 2),
-            Region::new(String::from("CW"), 0, 0, 7),
-            Region::new(String::from("CV"), 0, 0, 6),
-            Region::new(String::from("CT"), 0, 0, 2),
-            Region::new(String::from("CR"), 0, 0, 1),
-            Region::new(String::from("CO"), 0, 0, 12),
-            Region::new(String::from("CM"), 21, 23, 1),
-            Region::new(String::from("CM"), 0, 0, 12),
-            Region::new(String::from("CH"), 5, 8, 7),
-            Region::new(String::from("CH"), 0, 0, 7),
-            Region::new(String::from("CF"), 0, 0, 5),
-            Region::new(String::from("CB"), 0, 0, 12),
-            Region::new(String::from("CA"), 0, 0, 8),
-            Region::new(String::from("BT"), 0, 0, 21),
-            Region::new(String::from("BS"), 0, 0, 5),
-            Region::new(String::from("BR"), 0, 0, 2),
-            Region::new(String::from("BN"), 0, 0, 2),
-            Region::new(String::from("BL"), 0, 0, 7),
-            Region::new(String::from("BH"), 0, 0, 3),
-            Region::new(String::from("BD"), 23, 24, 10),
-            Region::new(String::from("BD"), 0, 0, 11),
-            Region::new(String::from("BB"), 0, 0, 7),
-            Region::new(String::from("BA"), 0, 0, 5),
-            Region::new(String::from("B"), 0, 0, 6),
-            Region::new(String::from("AL"), 0, 0, 1),
-            Region::new(String::from("AB"), 0, 0, 16),
-        ]
+        let regions: [Region; 171] = {
+            [
+                Region::new(String::from("ZE"), 0, 0, 20),
+                Region::new(String::from("YO25"), 0, 0, 11),
+                Region::new(String::from("ZE"), 0, 0, 20),
+                Region::new(String::from("YO25"), 0, 0, 11),
+                Region::new(String::from("YO"), 15, 16, 11),
+                Region::new(String::from("YO"), 0, 0, 10),
+                Region::new(String::from("WV"), 0, 0, 6),
+                Region::new(String::from("WS"), 0, 0, 6),
+                Region::new(String::from("WR"), 0, 0, 6),
+                Region::new(String::from("WN"), 0, 0, 7),
+                Region::new(String::from("WF"), 0, 0, 11),
+                Region::new(String::from("WD"), 0, 0, 1),
+                Region::new(String::from("WC"), 0, 0, 1),
+                Region::new(String::from("WA"), 0, 0, 7),
+                Region::new(String::from("W"), 0, 0, 1),
+                Region::new(String::from("UB"), 0, 0, 1),
+                Region::new(String::from("TW"), 0, 0, 1),
+                Region::new(String::from("TS"), 0, 0, 10),
+                Region::new(String::from("TR"), 0, 0, 4),
+                Region::new(String::from("TQ"), 0, 0, 4),
+                Region::new(String::from("TN"), 0, 0, 2),
+                Region::new(String::from("TF"), 0, 0, 6),
+                Region::new(String::from("TD15"), 0, 0, 9),
+                Region::new(String::from("TD12"), 0, 0, 9),
+                Region::new(String::from("TD"), 0, 0, 9),
+                Region::new(String::from("TA"), 0, 0, 5),
+                Region::new(String::from("SY"), 15, 25, 13),
+                Region::new(String::from("SY14"), 0, 0, 7),
+                Region::new(String::from("SY"), 0, 0, 6),
+                Region::new(String::from("SW"), 0, 0, 1),
+                Region::new(String::from("ST"), 0, 0, 6),
+                Region::new(String::from("SS"), 0, 0, 12),
+                Region::new(String::from("SR"), 7, 8, 10),
+                Region::new(String::from("SR"), 0, 0, 9),
+                Region::new(String::from("SP"), 6, 11, 3),
+                Region::new(String::from("SP"), 0, 0, 5),
+                Region::new(String::from("SO"), 0, 0, 3),
+                Region::new(String::from("SN7"), 0, 0, 1),
+                Region::new(String::from("SN"), 0, 0, 5),
+                Region::new(String::from("SM"), 0, 0, 1),
+                Region::new(String::from("SL"), 0, 0, 1),
+                Region::new(String::from("SK"), 22, 23, 6),
+                Region::new(String::from("SK17"), 0, 0, 6),
+                Region::new(String::from("SK13"), 0, 0, 6),
+                Region::new(String::from("SK"), 0, 0, 7),
+                Region::new(String::from("SG"), 0, 0, 1),
+                Region::new(String::from("SE"), 0, 0, 1),
+                Region::new(String::from("SA"), 61, 73, 13),
+                Region::new(String::from("SA"), 31, 48, 13),
+                Region::new(String::from("SA"), 14, 20, 13),
+                Region::new(String::from("SA"), 0, 0, 5),
+                Region::new(String::from("S"), 40, 45, 6),
+                Region::new(String::from("S"), 32, 33, 6),
+                Region::new(String::from("S18"), 0, 0, 6),
+                Region::new(String::from("S"), 0, 0, 11),
+                Region::new(String::from("RM"), 0, 0, 12),
+                Region::new(String::from("RH"), 10, 20, 2),
+                Region::new(String::from("RH"), 0, 0, 1),
+                Region::new(String::from("RG"), 21, 29, 3),
+                Region::new(String::from("RG"), 0, 0, 1),
+                Region::new(String::from("PR"), 0, 0, 7),
+                Region::new(String::from("PO"), 18, 22, 2),
+                Region::new(String::from("PO"), 0, 0, 3),
+                Region::new(String::from("PL"), 0, 0, 4),
+                Region::new(String::from("PH50"), 0, 0, 14),
+                Region::new(String::from("PH49"), 0, 0, 14),
+                Region::new(String::from("PH"), 30, 44, 17),
+                Region::new(String::from("PH26"), 0, 0, 16),
+                Region::new(String::from("PH"), 19, 25, 17),
+                Region::new(String::from("PH"), 0, 0, 15),
+                Region::new(String::from("PE"), 20, 25, 11),
+                Region::new(String::from("PE"), 9, 12, 11),
+                Region::new(String::from("PE"), 0, 0, 12),
+                Region::new(String::from("PA"), 0, 0, 14),
+                Region::new(String::from("OX"), 0, 0, 1),
+                Region::new(String::from("OL"), 0, 0, 7),
+                Region::new(String::from("NW"), 0, 0, 1),
+                Region::new(String::from("NR"), 0, 0, 12),
+                Region::new(String::from("NP8"), 0, 0, 13),
+                Region::new(String::from("NP"), 0, 0, 5),
+                Region::new(String::from("NN"), 0, 0, 6),
+                Region::new(String::from("NG"), 0, 0, 11),
+                Region::new(String::from("NE"), 0, 0, 9),
+                Region::new(String::from("N"), 0, 0, 1),
+                Region::new(String::from("ML"), 0, 0, 14),
+                Region::new(String::from("MK"), 0, 0, 1),
+                Region::new(String::from("ME"), 0, 0, 2),
+                Region::new(String::from("M"), 0, 0, 7),
+                Region::new(String::from("LU"), 0, 0, 1),
+                Region::new(String::from("LS24"), 0, 0, 10),
+                Region::new(String::from("LS"), 0, 0, 11),
+                Region::new(String::from("LN"), 0, 0, 11),
+                Region::new(String::from("LL"), 30, 78, 13),
+                Region::new(String::from("LL"), 23, 27, 13),
+                Region::new(String::from("LL"), 0, 0, 7),
+                Region::new(String::from("LE"), 0, 0, 6),
+                Region::new(String::from("LD"), 0, 0, 13),
+                Region::new(String::from("LA"), 7, 23, 8),
+                Region::new(String::from("LA"), 0, 0, 7),
+                Region::new(String::from("L"), 0, 0, 7),
+                Region::new(String::from("KY"), 0, 0, 15),
+                Region::new(String::from("KW"), 15, 17, 19),
+                Region::new(String::from("KW"), 0, 0, 17),
+                Region::new(String::from("KT"), 0, 0, 1),
+                Region::new(String::from("KA"), 0, 0, 14),
+                Region::new(String::from("IV36"), 0, 0, 16),
+                Region::new(String::from("IV"), 30, 32, 16),
+                Region::new(String::from("IV"), 0, 0, 17),
+                Region::new(String::from("IP"), 0, 0, 12),
+                Region::new(String::from("IG"), 0, 0, 12),
+                Region::new(String::from("HX"), 0, 0, 11),
+                Region::new(String::from("HU"), 0, 0, 11),
+                Region::new(String::from("HS"), 0, 0, 18),
+                Region::new(String::from("HR"), 0, 0, 6),
+                Region::new(String::from("HP"), 0, 0, 1),
+                Region::new(String::from("HG"), 0, 0, 10),
+                Region::new(String::from("HD"), 0, 0, 11),
+                Region::new(String::from("HA"), 0, 0, 1),
+                Region::new(String::from("GU"), 51, 52, 3),
+                Region::new(String::from("GU46"), 0, 0, 3),
+                Region::new(String::from("GU"), 30, 35, 3),
+                Region::new(String::from("GU"), 28, 29, 2),
+                Region::new(String::from("GU14"), 0, 0, 3),
+                Region::new(String::from("GU"), 11, 12, 3),
+                Region::new(String::from("GU"), 0, 0, 1),
+                Region::new(String::from("GL"), 0, 0, 5),
+                Region::new(String::from("G"), 0, 0, 14),
+                Region::new(String::from("FY"), 0, 0, 7),
+                Region::new(String::from("FK"), 0, 0, 14),
+                Region::new(String::from("EX"), 0, 0, 4),
+                Region::new(String::from("EN9"), 0, 0, 12),
+                Region::new(String::from("EN"), 0, 0, 1),
+                Region::new(String::from("EH"), 43, 46, 9),
+                Region::new(String::from("EH"), 0, 0, 15),
+                Region::new(String::from("EC"), 0, 0, 1),
+                Region::new(String::from("E"), 0, 0, 1),
+                Region::new(String::from("DY"), 0, 0, 6),
+                Region::new(String::from("DT"), 0, 0, 3),
+                Region::new(String::from("DN"), 0, 0, 11),
+                Region::new(String::from("DL"), 0, 0, 10),
+                Region::new(String::from("DH"), 4, 5, 9),
+                Region::new(String::from("DH"), 0, 0, 10),
+                Region::new(String::from("DG"), 0, 0, 8),
+                Region::new(String::from("DE"), 0, 0, 6),
+                Region::new(String::from("DD"), 0, 0, 15),
+                Region::new(String::from("DA"), 0, 0, 2),
+                Region::new(String::from("CW"), 0, 0, 7),
+                Region::new(String::from("CV"), 0, 0, 6),
+                Region::new(String::from("CT"), 0, 0, 2),
+                Region::new(String::from("CR"), 0, 0, 1),
+                Region::new(String::from("CO"), 0, 0, 12),
+                Region::new(String::from("CM"), 21, 23, 1),
+                Region::new(String::from("CM"), 0, 0, 12),
+                Region::new(String::from("CH"), 5, 8, 7),
+                Region::new(String::from("CH"), 0, 0, 7),
+                Region::new(String::from("CF"), 0, 0, 5),
+                Region::new(String::from("CB"), 0, 0, 12),
+                Region::new(String::from("CA"), 0, 0, 8),
+                Region::new(String::from("BT"), 0, 0, 21),
+                Region::new(String::from("BS"), 0, 0, 5),
+                Region::new(String::from("BR"), 0, 0, 2),
+                Region::new(String::from("BN"), 0, 0, 2),
+                Region::new(String::from("BL"), 0, 0, 7),
+                Region::new(String::from("BH"), 0, 0, 3),
+                Region::new(String::from("BD"), 23, 24, 10),
+                Region::new(String::from("BD"), 0, 0, 11),
+                Region::new(String::from("BB"), 0, 0, 7),
+                Region::new(String::from("BA"), 0, 0, 5),
+                Region::new(String::from("B"), 0, 0, 6),
+                Region::new(String::from("AL"), 0, 0, 1),
+                Region::new(String::from("AB"), 0, 0, 16),
+            ]
         };
 
         let mut digits: String = String::from("");
@@ -510,10 +501,12 @@ pub fn run_simulation (
         ),
     };
 
-    let calculate_monthly_solar_gains = | monthly_solar_gain_ratios: &[f32; 12] | -> [f32; 12]{
+    let calculate_monthly_solar_gains = |monthly_solar_gain_ratios: &[f32; 12]| -> [f32; 12] {
         let mut monthly_solar_gains: [f32; 12] = [0.0; 12];
         for i in 0..monthly_epc_solar_irradiances.len() {
-            monthly_solar_gains[i] = (monthly_epc_solar_irradiances[i] as f32) * monthly_solar_gain_ratios[i] * solar_gain_house_factor;
+            monthly_solar_gains[i] = (monthly_epc_solar_irradiances[i] as f32)
+                * monthly_solar_gain_ratios[i]
+                * solar_gain_house_factor;
         }
         monthly_solar_gains
     };
@@ -685,10 +678,10 @@ pub fn run_simulation (
         )
     };
 
-    let (erh_total_demand, erh_space_demand, erh_hot_water_demand, erh_max_hourly_demand) =
+    let (yearly_erh_demand, yearly_erh_space_demand, yearly_erh_hot_water_demand, erh_max_hourly_demand) =
         calculate_demand(hourly_erh_thermostat_temperatures);
 
-    let (hp_total_demand, hp_space_demand, hp_hot_water_demand, hp_max_hourly_demand) =
+    let (yearly_hp_demand, yearly_hp_space_demand, yearly_hp_hot_water_demand, hp_max_hourly_demand) =
         calculate_demand(hourly_hp_thermostat_temperatures);
 
     let discount_rate: f32 = 1.035; // 3.5% standard for UK HMRC
@@ -927,8 +920,8 @@ pub fn run_simulation (
         };
 
         let key = (
-                ((latitude * 2.0).round() / 2.0 * 10.0) as i32,
-                ((longitude * 2.0).round() / 2.0 * 10.0) as i32,
+            ((latitude * 2.0).round() / 2.0 * 10.0) as i32,
+            ((longitude * 2.0).round() / 2.0 * 10.0) as i32,
         );
 
         //dbg!(key);
@@ -936,16 +929,17 @@ pub fn run_simulation (
         let get_coldest_outside_temperature_of_year_for_location = || -> f32 {
             for element in TEMPERATURE_MAP {
                 if element.0 == key.0 && element.1 == key.1 {
-                    return element.2 as f32 / 1000.0
+                    return element.2 as f32 / 1000.0;
                 }
             }
             0.0
         };
-        
-        let coldest_outside_temperature_of_year = get_coldest_outside_temperature_of_year_for_location();
+
+        let coldest_outside_temperature_of_year =
+            get_coldest_outside_temperature_of_year_for_location();
         coldest_outside_temperature_of_year
     };
-    
+
     let ground_temperature: f32 = 15.0 - (latitude - 50.0) * (4.0 / 9.0); // Linear regression ground temp across UK at 100m depth
     let tes_range: u8 = ((tes_volume_max + 0.01) / 0.1) as u8; // +0.01 avoids floating point error;
     let solar_maximum: u16 = ((house_size / 8.0) as u16) * 2; // Quarter of the roof for solar, even number
@@ -1037,14 +1031,14 @@ pub fn run_simulation (
         println!("thermal_transmittance: {:?}", thermal_transmittance);
         println!("optimised_epc_demand: {:?}", optimised_epc_demand);
 
-        println!("erh_total_demand: {:?}", erh_total_demand);
-        println!("erh_space_demand: {:?}", erh_space_demand);
-        println!("erh_hot_water_demand: {:?}", erh_hot_water_demand);
+        println!("erh_total_demand: {:?}", yearly_erh_demand);
+        println!("erh_space_demand: {:?}", yearly_erh_space_demand);
+        println!("erh_hot_water_demand: {:?}", yearly_erh_hot_water_demand);
         println!("erh_max_hourly_demand: {:?}", erh_max_hourly_demand);
 
-        println!("hp_total_demand: {:?}", hp_total_demand);
-        println!("hp_space_demand: {:?}", hp_space_demand);
-        println!("hp_hot_water_demand: {:?}", hp_hot_water_demand);
+        println!("hp_total_demand: {:?}", yearly_hp_demand);
+        println!("hp_space_demand: {:?}", yearly_hp_space_demand);
+        println!("hp_hot_water_demand: {:?}", yearly_hp_hot_water_demand);
         println!("hp_max_hourly_demand: {:?}", hp_max_hourly_demand);
 
         println!("discount_rate: {:?}", discount_rate);
@@ -1202,7 +1196,10 @@ pub fn run_simulation (
         };
 
         let mut min_net_present_cost: f32 = f32::MAX;
-        let mut find_optimal_specification = |optimal_specification: &mut SystemSpecification, solar_size: u16, tes_option: u8| -> f32 {
+        let mut find_optimal_specification = |optimal_specification: &mut SystemSpecification,
+                                              solar_size: u16,
+                                              tes_option: u8|
+         -> f32 {
             let solar_thermal_size: u16 = match solar_option {
                 SolarOption::None | SolarOption::PhotoVoltaics => 0,
                 _ => (solar_size * 2 + 2),
@@ -1213,9 +1210,7 @@ pub fn run_simulation (
                     solar_size * 2 + 2
                 }
                 SolarOption::PhotoVoltaicsWithFlatPlate
-                | SolarOption::PhotoVoltaicsWithEvacuatedTube => {
-                    solar_maximum - solar_thermal_size
-                }
+                | SolarOption::PhotoVoltaicsWithEvacuatedTube => solar_maximum - solar_thermal_size,
                 _ => 0,
             };
 
@@ -1274,8 +1269,7 @@ pub fn run_simulation (
                     // Evacuated tube solar thermal
                     // Technology Library for collector cost https://zenodo.org/record/4692649#.YQEbio5KjIV
                     // Rest from https://www.sciencedirect.com/science/article/pii/S0306261915010958#b0310
-                    SolarOption::EvacuatedTube
-                    | SolarOption::PhotoVoltaicsWithEvacuatedTube => {
+                    SolarOption::EvacuatedTube | SolarOption::PhotoVoltaicsWithEvacuatedTube => {
                         (solar_thermal_size as f32) * (280.0 + 270.0 / (9.0 * 1.6))
                             + 490.0
                             + 800.0
@@ -1460,8 +1454,7 @@ pub fn run_simulation (
                                         0.0
                                     } else {
                                         let solar_thermal_collector_temperature: f32 =
-                                            (tes_upper_temperature + tes_lower_temperature)
-                                                / 2.0;
+                                            (tes_upper_temperature + tes_lower_temperature) / 2.0;
                                         // Collector to heat from tes lower temperature to tes upper temperature, so use the average temperature
 
                                         let (a, b, c): (f32, f32, f32) = match solar_option {
@@ -1479,9 +1472,7 @@ pub fn run_simulation (
                                             | SolarOption::PhotoVoltaicsWithEvacuatedTube => {
                                                 (-0.00002, -0.0009, 0.625)
                                             }
-                                            _ => panic!(
-                                                "No other solar option should be possible"
-                                            ),
+                                            _ => panic!("No other solar option should be possible"),
                                         };
                                         let solar_thermal_generation = 0.8
                                             * (solar_thermal_size as f32)
@@ -1518,8 +1509,7 @@ pub fn run_simulation (
                                         - inside_temperature)
                                         * heat_capacity;
                                     if (hourly_space_demand + hourly_hot_water_demand)
-                                        < (tes_state_of_charge
-                                            + hp_electrical_power * cop_current)
+                                        < (tes_state_of_charge + hp_electrical_power * cop_current)
                                     {
                                         inside_temperature = hourly_thermostat_temperature;
                                         hourly_space_demand
@@ -1529,15 +1519,13 @@ pub fn run_simulation (
                                             let space_hr_demand = (tes_state_of_charge
                                                 + hp_electrical_power * cop_current)
                                                 - hourly_hot_water_demand;
-                                            inside_temperature +=
-                                                space_hr_demand / heat_capacity;
+                                            inside_temperature += space_hr_demand / heat_capacity;
                                             space_hr_demand
                                         } else {
                                             let space_hr_demand = (hp_electrical_power
                                                 * cop_current)
                                                 - hourly_hot_water_demand;
-                                            inside_temperature +=
-                                                space_hr_demand / heat_capacity;
+                                            inside_temperature += space_hr_demand / heat_capacity;
                                             space_hr_demand
                                         }
                                     }
@@ -1574,9 +1562,7 @@ pub fn run_simulation (
 
                             // calculate_electrical_demand_for_tes_charging
                             if tes_state_of_charge < tes_charge_full
-                                && ((matches!(tariff, Tariff::FlatRate)
-                                    && 12 < hour
-                                    && hour < 16)
+                                && ((matches!(tariff, Tariff::FlatRate) && 12 < hour && hour < 16)
                                     || (matches!(tariff, Tariff::Economy7)
                                         && (hour == 23 || hour < 6))
                                     || (matches!(tariff, Tariff::BulbSmart)
@@ -1609,8 +1595,7 @@ pub fn run_simulation (
                                 let tes_boost_charge_difference: f32 =
                                     tes_charge_boost - tes_state_of_charge;
                                 if pv_remaining > 0.0 && tes_boost_charge_difference > 0.0 {
-                                    if (tes_boost_charge_difference
-                                        < (pv_remaining * cop_boost))
+                                    if (tes_boost_charge_difference < (pv_remaining * cop_boost))
                                         && (tes_boost_charge_difference
                                             < ((hp_electrical_power - electrical_demand)
                                                 * cop_boost))
@@ -1622,9 +1607,8 @@ pub fn run_simulation (
                                         tes_state_of_charge += pv_remaining * cop_boost;
                                         electrical_demand += pv_remaining;
                                     } else {
-                                        tes_state_of_charge += (hp_electrical_power
-                                            - electrical_demand)
-                                            * cop_boost;
+                                        tes_state_of_charge +=
+                                            (hp_electrical_power - electrical_demand) * cop_boost;
                                         electrical_demand = hp_electrical_power;
                                     }
                                 }
@@ -1667,8 +1651,7 @@ pub fn run_simulation (
                                         // Economy 7 tariff, same source as flat rate above
                                         if hour < 6 || hour == 23 {
                                             // Off Peak
-                                            operational_costs_off_peak +=
-                                                0.095 * electrical_import;
+                                            operational_costs_off_peak += 0.095 * electrical_import;
                                         } else {
                                             // Peak
                                             operational_costs_peak += 0.199 * electrical_import;
@@ -1679,8 +1662,7 @@ pub fn run_simulation (
                                         // https://help.bulb.co.uk/hc/en-us/articles/360017795731-About-Bulb-s-smart-tariff
                                         if 15 < hour && hour < 19 {
                                             // Peak winter times throughout the year
-                                            operational_costs_peak +=
-                                                0.2529 * electrical_import;
+                                            operational_costs_peak += 0.2529 * electrical_import;
                                         } else {
                                             // Off peak
                                             operational_costs_off_peak +=
@@ -1692,12 +1674,10 @@ pub fn run_simulation (
                                         // https://www.octopusreferral.link/octopus-energy-go-tariff/
                                         if hour < 5 {
                                             // Off Peak
-                                            operational_costs_off_peak +=
-                                                0.05 * electrical_import;
+                                            operational_costs_off_peak += 0.05 * electrical_import;
                                         } else {
                                             // Peak
-                                            operational_costs_peak +=
-                                                0.1533 * electrical_import;
+                                            operational_costs_peak += 0.1533 * electrical_import;
                                         }
                                     }
                                     Tariff::OctopusAgile => {
@@ -1705,14 +1685,12 @@ pub fn run_simulation (
                                         // 2021 Octopus export rates https://octopus.energy/outgoing/
                                         if agile_tariff_current < 9.0 {
                                             // Off peak, lower range of variable costs
-                                            operational_costs_off_peak += (agile_tariff_current
-                                                / 100.0)
-                                                * electrical_import;
+                                            operational_costs_off_peak +=
+                                                (agile_tariff_current / 100.0) * electrical_import;
                                         } else {
                                             // Peak, upper range of variable costs
-                                            operational_costs_peak += (agile_tariff_current
-                                                / 100.0)
-                                                * electrical_import;
+                                            operational_costs_peak +=
+                                                (agile_tariff_current / 100.0) * electrical_import;
                                         }
                                     }
                                 }
@@ -1786,8 +1764,7 @@ pub fn run_simulation (
                             let hourly_operational_emissions: f32 = {
                                 // Operational emissions summation, 22.5 average ST
                                 // from https://post.parliament.uk/research-briefings/post-pn-0523/
-                                let emissions_solar_thermal: f32 =
-                                    solar_thermal_generation * 22.5;
+                                let emissions_solar_thermal: f32 = solar_thermal_generation * 22.5;
 
                                 let emissions_pv_generation: f32 = {
                                     // https://www.parliament.uk/globalassets/documents/post/postpn_383-carbon-footprint-electricity-generation.pdf
@@ -1800,8 +1777,7 @@ pub fn run_simulation (
                                     }
                                 };
 
-                                let emissions_grid_import: f32 =
-                                    electrical_import * grid_emissions;
+                                let emissions_grid_import: f32 = electrical_import * grid_emissions;
 
                                 emissions_solar_thermal
                                     + emissions_pv_generation
@@ -1814,10 +1790,10 @@ pub fn run_simulation (
                     }
                 }
                 let operational_expenditure: f32 =
-                        operational_costs_peak + operational_costs_off_peak; // tariff
+                    operational_costs_peak + operational_costs_off_peak; // tariff
 
-                let net_present_cost: f32 = capital_expenditure
-                    + operational_expenditure * cumulative_discount_rate;
+                let net_present_cost: f32 =
+                    capital_expenditure + operational_expenditure * cumulative_discount_rate;
 
                 if net_present_cost < min_tariff_net_present_cost {
                     min_tariff_net_present_cost = net_present_cost;
@@ -1852,21 +1828,23 @@ pub fn run_simulation (
                 zs.push(f32::MAX);
             }
 
-            let min_step: usize = 3;
+            let min_num_segments: usize = 3;
             let target_step: usize = 7;
             let gradient_factor: f32 = 0.15;
 
-            let x_num_segments = cmp::max(x_size / target_step, min_step);
-            let y_num_segments = cmp::max(y_size / target_step, min_step);
+            let x_num_segments = (x_size / target_step).max(min_num_segments.min(x_size-1));
+            let y_num_segments = (y_size / target_step).max(min_num_segments.min(y_size-1));
 
-            let linearly_space = | range: usize, num_segments: usize | -> Vec<usize> {
+            let linearly_space = |range: usize, num_segments: usize| -> Vec<usize> {
                 let mut points: Vec<usize> = Vec::with_capacity(num_segments + 1);
                 let step: f32 = (range as f32) / (num_segments as f32);
                 let mut i: f32 = 0.0;
                 loop {
                     let j: usize = i.round() as usize;
                     points.push(j);
-                    if j >= range {break;}
+                    if j >= range {
+                        break;
+                    }
                     i += step;
                 }
                 // println!("Points: {:?}", points);
@@ -1890,13 +1868,15 @@ pub fn run_simulation (
                 if zs[k] == f32::MAX {
                     find_optimal_specification(optimal_specification, i as u16, j as u8);
                     let z = optimal_specification.net_present_cost;
-                    if z < *min_z { *min_z = z };
+                    if z < *min_z {
+                        *min_z = z
+                    };
                     zs[k] = z;
                 }
                 zs[k]
             };
 
-             // combine 1D x and y indices into a 2D mesh
+            // combine 1D x and y indices into a 2D mesh
             // currently adjacent nodes not removed (they should be calculated and removed)
             let mut index_rects: Vec<Rect> = Vec::with_capacity(x_num_segments * y_num_segments);
 
@@ -1906,9 +1886,9 @@ pub fn run_simulation (
                 for i in 0..x_num_segments {
                     index_rects.push(Rect {
                         i1: is[i],
-                        i2: is[i+1],
+                        i2: is[i + 1],
                         j1: js[j],
-                        j2: js[j+1]
+                        j2: js[j + 1],
                     });
                 }
             }
@@ -1922,13 +1902,21 @@ pub fn run_simulation (
 
                 let mx: f32 = ((z11 - z21) / ((r.i2 - r.i1) as f32)).abs();
                 let my: f32 = ((z11 - z12) / ((r.j2 - r.j1) as f32)).abs();
-                if mx > max_mx { max_mx = mx };
-                if my > max_my { max_my = my };
+                if mx > max_mx {
+                    max_mx = mx
+                };
+                if my > max_my {
+                    max_my = my
+                };
 
                 let mx: f32 = ((z22 - z21) / ((r.i2 - r.i1) as f32)).abs();
                 let my: f32 = ((z22 - z12) / ((r.j2 - r.j1) as f32)).abs();
-                if mx > max_mx { max_mx = mx };
-                if my > max_my { max_my = my };
+                if mx > max_mx {
+                    max_mx = mx
+                };
+                if my > max_my {
+                    max_my = my
+                };
             }
             max_mx *= gradient_factor;
             max_my *= gradient_factor;
@@ -1949,23 +1937,30 @@ pub fn run_simulation (
                     // get node with lowest npc
                     let min_local_z: f32 = {
                         let mut m: f32 = z11;
-                        if z21 < m { m = z21 };
-                        if z12 < m { m = z12 };
-                        if z22 < m { m = z22 };
+                        if z21 < m {
+                            m = z21
+                        };
+                        if z12 < m {
+                            m = z12
+                        };
+                        if z22 < m {
+                            m = z22
+                        };
                         m
                     };
 
                     // estimate minimum npc between nodes
-                    let min_z_estimate: f32 = min_local_z - (max_mx * (di as f32) + max_my * (dj as f32));
+                    let min_z_estimate: f32 =
+                        min_local_z - (max_mx * (di as f32) + max_my * (dj as f32));
                     // if segment could have npc lower than the current min subdivide
                     if min_z_estimate < min_z {
                         // subdivide segments that can be divided further, otherwise leave at unit length
-                        let i12: usize = if di == 1 {r.i2} else {r.i1 + di / 2};
+                        let i12: usize = if di == 1 { r.i2 } else { r.i1 + di / 2 };
                         if i12 != r.i2 {
                             get_or_calculate(i12, r.j1, &mut min_z);
                             get_or_calculate(i12, r.j1, &mut min_z);
                         }
-                        let j12: usize = if dj == 1 {r.j2} else {r.j1 + dj / 2};
+                        let j12: usize = if dj == 1 { r.j2 } else { r.j1 + dj / 2 };
                         if j12 != r.j2 {
                             get_or_calculate(r.i1, j12, &mut min_z);
                             get_or_calculate(r.i2, j12, &mut min_z);
@@ -1977,10 +1972,38 @@ pub fn run_simulation (
                         let sub_j2: bool = r.j2 - j12 > 1;
 
                         // one of the dimensions must have a length > 1 if the rect is to be subdivided further
-                        if sub_i1 || sub_j1 { next_rects.push(Rect { i1: r.i1, j1: r.j1, i2: i12,  j2: j12 }) };
-                        if sub_i2 || sub_j1 { next_rects.push(Rect { i1: i12,  j1: r.j1, i2: r.i2, j2: j12 }) };
-                        if sub_i1 || sub_j2 { next_rects.push(Rect { i1: r.i1, j1: j12,  i2: i12,  j2: r.j2 }) };
-                        if sub_i2 || sub_j2 { next_rects.push(Rect { i1: i12,  j1: j12,  i2: r.i2, j2: r.j2 }) };
+                        if sub_i1 || sub_j1 {
+                            next_rects.push(Rect {
+                                i1: r.i1,
+                                j1: r.j1,
+                                i2: i12,
+                                j2: j12,
+                            })
+                        };
+                        if sub_i2 || sub_j1 {
+                            next_rects.push(Rect {
+                                i1: i12,
+                                j1: r.j1,
+                                i2: r.i2,
+                                j2: j12,
+                            })
+                        };
+                        if sub_i1 || sub_j2 {
+                            next_rects.push(Rect {
+                                i1: r.i1,
+                                j1: j12,
+                                i2: i12,
+                                j2: r.j2,
+                            })
+                        };
+                        if sub_i2 || sub_j2 {
+                            next_rects.push(Rect {
+                                i1: i12,
+                                j1: j12,
+                                i2: r.i2,
+                                j2: r.j2,
+                            })
+                        };
                     }
                 }
                 index_rects = next_rects;
@@ -1988,7 +2011,7 @@ pub fn run_simulation (
         };
 
         let use_surface_optimisation: bool = true;
-        if solar_size_range > 1 && use_surface_optimisation {
+        if solar_size_range > 1 && tes_range > 1 && use_surface_optimisation {
             surface_optimiser(solar_size_range as usize, tes_range as usize);
         } else {
             for solar_size in 0..solar_size_range {
@@ -2001,12 +2024,14 @@ pub fn run_simulation (
     };
 
     #[cfg(target_family = "wasm")] // single-threaded
-    optimal_specifications.iter_mut()
-    .for_each(|optimal_specification| simulate_heat_solar_combination(optimal_specification));
+    optimal_specifications
+        .iter_mut()
+        .for_each(|optimal_specification| simulate_heat_solar_combination(optimal_specification));
 
     #[cfg(not(target_family = "wasm"))] // multi-threaded
-    optimal_specifications.par_iter_mut()
-    .for_each(|optimal_specification| simulate_heat_solar_combination(optimal_specification));
+    optimal_specifications
+        .par_iter_mut()
+        .for_each(|optimal_specification| simulate_heat_solar_combination(optimal_specification));
 
     for s in optimal_specifications {
         println!(
@@ -2024,30 +2049,181 @@ pub fn run_simulation (
         );
     }
 
-    #[cfg(target_family = "wasm")]
-    {
-        let heat_strs: [&str; 3] = ["ERH", "ASHP", "GSHP"];
-        let solar_strs: [&str; 7] = ["None", "PV", "FP", "ET", "FP+PV", "ET+PV", "PVT"];
-        let mut wasm_string: String = String::from("[");
-        for (i, s) in optimal_specifications.iter().enumerate() {
-            if i > 0 {wasm_string.push_str(",");}
-            wasm_string.push_str(&format!(
-            "[{:?}, {:?}, {}, {}, {}, {:.0}, {:.0}, {:.0}, {:.0}]",
-            heat_strs[s.heat_option as usize],
-            solar_strs[s.solar_option as usize],
-            s.pv_size,
-            s.solar_thermal_size,
-            s.tes_volume,
-            //s.tariff as u8,
-            s.operational_expenditure,
-            s.capital_expenditure,
-            s.net_present_cost,
-            s.operational_emissions / 1000.0));
-        }
-        wasm_string.push_str("]");
-        //println!("{}", wasm_string);
-        return wasm_string;
+    struct GenericSystem {
+        operational_expenditure: f32,
+        capital_expenditure: f32,
+        net_present_cost: f32,
+        operational_emissions: f32,
     }
-    #[cfg(not(target_family = "wasm"))]
-    String::from("simulation complete")
+
+    let build_generic_system = |cost_per_kwh: f32,
+                                yearly_demand: f32,
+                                capital_expenditure: f32,
+                                emissions_per_kwh: f32|
+                                -> GenericSystem {
+        let operational_expenditure = yearly_demand * cost_per_kwh;
+        let net_present_cost =
+            capital_expenditure + cumulative_discount_rate * operational_expenditure;
+        let operational_emissions = yearly_demand * emissions_per_kwh;
+
+        GenericSystem {
+            operational_expenditure,
+            capital_expenditure,
+            net_present_cost,
+            operational_emissions,
+        }
+    };
+
+    // calculate CAPEX, OPEX and NPC of hydrogen, gas and biomass systems
+    let yearly_boiler_demand: f32 = yearly_erh_demand / 0.9;
+    let yearly_fuel_cell_demand: f32 = yearly_hp_demand / 0.94;
+
+    // £2200 - 3000 from A greener gas grid : What are the options
+    let hydrogen_boiler_capex = (2000.0 + epc_space_heating / 25.0).min(3000.0);
+
+    let grey_hydrogen_boiler = build_generic_system(
+        0.049, // 4.9p / kWh A greener gas grid : What are the options, lowest cost
+        yearly_boiler_demand,
+        hydrogen_boiler_capex,
+        382.0, // gCO2e / kWh, 382 middle value from SMR w / o CCS in parliament post
+    );
+
+    let blue_hydrogen_boiler = build_generic_system(
+        0.093, // 9.3p / kWh A greener gas grid : What are the options, average
+        yearly_boiler_demand,
+        hydrogen_boiler_capex,
+        60.0, // gCO2e / kWh, 60 middle value from SMR with CCS in parliament post
+    );
+
+    let green_hydrogen_boiler = build_generic_system(
+        0.184, // 18.4p / kWh A greener gas grid : What are the options, highest cost
+        yearly_boiler_demand,
+        hydrogen_boiler_capex,
+        1875.0 * grid_emissions / 1000.0, // 1875 gCO2 / kWhe of grid in parliament post
+    );
+
+    // 12000 fuel cell + min TES size, CAPEX of 10 yr life adjusted for npc_years
+    let hydrogen_fuel_cell_capex = (12000.0 + 2068.3 * (0.1_f32).powf(0.553)) * ((npc_years / 10) as f32);
+
+    let grey_hydrogen_fuel_cell = build_generic_system(
+        0.049, // 4.9p / kWh A greener gas grid : What are the options, lowest cost
+        yearly_fuel_cell_demand,
+        hydrogen_fuel_cell_capex,
+        382.0, // gCO2e / kWh, 382 middle value from SMR w / o CCS in parliament post
+    );
+
+    let blue_hydrogen_fuel_cell = build_generic_system(
+        0.093, // 9.3p / kWh A greener gas grid : What are the options, average
+        yearly_fuel_cell_demand,
+        hydrogen_fuel_cell_capex,
+        60.0, // gCO2e / kWh, 60 middle value from SMR with CCS in parliament post
+    );
+
+    let green_hydrogen_fuel_cell = build_generic_system(
+        0.184, // 18.4p / kWh A greener gas grid : What are the options, highest cost
+        yearly_fuel_cell_demand,
+        hydrogen_fuel_cell_capex,
+        1875.0 * grid_emissions / 1000.0, // 1875 gCO2 / kWhe of grid in parliament post
+    );
+
+    let gas_boiler = build_generic_system(
+        0.04, // 4p / kWh, avg gas bills £557, for 13, 600kWh = 4.09p / kWh includes equivalent standing charge
+        yearly_boiler_demand,
+        hydrogen_boiler_capex - 500.0, // estimated 500 less than hydrogen boiler
+        183.0,                       // 183 gCO2e / kWh for UK natural gas
+    );
+
+     let biomass_boiler = build_generic_system(
+        0.0411, // 4.11p / kWh
+        yearly_boiler_demand,
+        (9000.0 + epc_space_heating / 4.0).min(19000.0), // £10 - 19k for automatically fed biomass boilers,
+        90.0, // 90gCO2 / kWh middle value from parliament post// 183 gCO2e / kWh for UK natural gas
+    );
+
+    // End of Simulation Calculation: Serialise results using JSON
+
+    // serialise erh and hp demand
+    let serialise_demand = | heat_option: &str, total_demand, space_demand, hot_water, max_hourly | -> String {
+        format!("\
+        \"{}\": {{\
+        \"hot-water\": {:.0},\
+        \"space\": {:.0},\
+        \"total\": {:.0},\
+        \"peak-hourly\": {:.5}}}", heat_option, hot_water, space_demand, total_demand, max_hourly)
+    };
+
+    let mut s = format!("{{\"demand\":{{");
+    s.push_str(&serialise_demand("boiler", yearly_erh_demand, yearly_erh_space_demand, yearly_erh_hot_water_demand, erh_max_hourly_demand));
+    s.push(',');
+    s.push_str(&serialise_demand("heat-pump", yearly_hp_demand, yearly_hp_space_demand, yearly_hp_hot_water_demand, hp_max_hourly_demand));
+    s.push_str("},");
+    s.push_str( &format!("\"systems\":{{"));
+
+    // serialise heat-solar systems
+    let heat_options_json = [ "electric-boiler", "air-source-heat-pump", "ground-source-heat-pump" ];
+    let solar_options_json = [ "none", "photovoltaic", "flat-plate", "evacuated-tube", "flat-plate-and-photovoltaic", "evacuated-tube-and-photovoltaic", "photovoltaic-thermal-hybrid" ];
+    for (i, system) in optimal_specifications.iter().enumerate() {
+        if i % 7 == 0 {
+            if i > 0 {
+                s.push_str("},");
+            }
+            s.push_str(&format!("\"{}\":{{", heat_options_json[system.heat_option as usize]));
+        }
+        // \"tariff\":{},\
+        // system.tariff as u8,
+        s.push_str(&format!("\"{}\":{{\"pv-size\": {},\
+	    \"solar-thermal-size\":{},\
+	    \"thermal-energy-storage-volume\":{:.0},\
+	    \"operational-expenditure\":{:.0},\
+	    \"capital-expenditure\":{:.0},\
+	    \"net-present-cost\":{:.0},\
+	    \"operational-emissions\":{:.0}}}",
+                            solar_options_json[system.solar_option as usize],
+                            system.pv_size,
+                            system.solar_thermal_size,
+                            system.tes_volume,
+                            system.operational_expenditure,
+                            system.capital_expenditure,
+                            system.net_present_cost,
+                            system.operational_emissions
+        ));
+        if i % 7 < 6 {
+            s.push(',');
+        }
+    }
+
+    // serialise heat-only systems
+    let serialise_generic_system = | system: GenericSystem, name: &str | -> String {
+        format!("\"{}\":{{\
+	    \"operational-expenditure\":{:.0},\
+	    \"capital-expenditure\":{:.0},\
+	    \"net-present-cost\":{:.0},\
+	    \"operational-emissions\":{:.0}}}",
+         name,
+         system.operational_expenditure,
+         system.capital_expenditure,
+         system.net_present_cost,
+         system.operational_emissions
+        )
+    };
+
+    s.push_str("},\"hydrogen-boiler\":{");
+    s.push_str(&serialise_generic_system(grey_hydrogen_boiler, &"grey"));
+    s.push(',');
+    s.push_str(&serialise_generic_system(blue_hydrogen_boiler, &"blue"));
+    s.push(',');
+    s.push_str(&serialise_generic_system(green_hydrogen_boiler, &"green"));
+    s.push_str("},\"hydrogen-fuel-cell\":{");
+    s.push_str(&serialise_generic_system(grey_hydrogen_fuel_cell, &"grey"));
+    s.push(',');
+    s.push_str(&serialise_generic_system(blue_hydrogen_fuel_cell, &"blue"));
+    s.push(',');
+    s.push_str(&serialise_generic_system(green_hydrogen_fuel_cell, &"green"));
+    s.push_str("},");
+    s.push_str(&serialise_generic_system(gas_boiler, &"gas-boiler"));
+    s.push(',');
+    s.push_str(&serialise_generic_system(biomass_boiler, &"biomass-boiler"));
+    s.push_str("}}");
+
+    s
 }

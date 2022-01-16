@@ -14,27 +14,36 @@ import { run_simulation } from "../../rust_simulator/pkg/rust_simulator.js";
 const app = express();
 app.use(cors());
 
-app.get('/', async (req, res) => {
-    //console.log(req, res);
-    const postcode = req.query.postcode;
-    let latitude = Number(req.query.latitude);
-    let longitude = Number(req.query.longitude);
-    console.log('postcode: ', postcode, latitude);
-    if (postcode != undefined) {
-        if (isNaN(latitude)) { latitude = 52.3833; };
-        if (isNaN(longitude)) { longitude = -1.5833; };
-        const t0 = performance.now();
-
-        //const result = '[1, 2, 3, 4]';
-        const result = await submit_simulation(postcode, latitude, longitude, 2, 360, 20, 3000, 3.0);
-        const t1 = performance.now();
-        console.log(`Time: ${t1 - t0} milliseconds.`);
-        res.send({ 'result': JSON.parse(result), 'inputs': { 'postcode': postcode, 'latitude': latitude, 'longitude': longitude } });
-        //res.send('T4');
+function default_if_ndef(value, parameter) {
+    if (parameter == undefined) {
+        return value;
     }
     else {
-        res.send('Simulator API: 0');
+        return parameter;
     }
+}
+
+// postcode=CV47AL&latitude=52.3833&longitude=-1.5833&occupants=2&temperature=20&space_heating=3000&floor_area=60&tes_max=0.5
+app.get('/', async (req, res) => {
+    //console.log(req, res);
+    const p = {
+        'postcode': default_if_ndef('CV47AL', req.query.postcode),
+        'latitude': Number(default_if_ndef('52.3833', req.query.latitude)),
+        'longitude': Number(default_if_ndef('-1.5833', req.query.longitude)),
+        'occupants': Number(default_if_ndef('2', req.query.occupants)),
+        'temperature': Number(default_if_ndef('20.0', req.query.temperature)),
+        'space_heating': Number(default_if_ndef('3000', req.query.space_heating)),
+        'floor_area': Number(default_if_ndef('60.0', req.query.floor_area)),
+        'tes_max': Number(default_if_ndef('0.5', req.query.tes_max)),
+    };
+
+    console.log('parameters: ', p);
+    const t0 = performance.now();
+    const result = await submit_simulation(p.postcode, p.latitude, p.longitude,
+        p.occupants, p.floor_area, p.temperature, p.space_heating, p.tes_max);
+    const t1 = performance.now();
+    console.log(`Time: ${t1 - t0} milliseconds.`);
+    res.send({ 'inputs': p, 'result': JSON.parse(result) });
 
 
     //console.log('DONE2');

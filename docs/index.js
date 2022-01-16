@@ -378,17 +378,63 @@ function recalculate_net_present_costs() {
 // submit, download, copy simulation functions
 
 function submit_simulation() {
+    if (document.getElementById('sim-submit-server').checked) {
+        submit_simulation_server();
+    } else {
+        document.getElementById('results').classList.add("hide");
+
+        // get parameters from html and convert to json object
+        let inputs = collect_parameters();
+        const surf_opt = 'surface_optimisation';
+        inputs[surf_opt] = document.getElementById(get_parameter_id(surf_opt)).checked;
+
+        document.getElementById('sim-runtime').innerHTML = '...';
+        console.log('simulation parameters:', inputs);
+        document.getElementById('sim-submit').disabled = true;
+        sim_worker.postMessage(["run simulation", inputs]);
+    }
+}
+
+function submit_simulation_server() {
     document.getElementById('results').classList.add("hide");
 
     // get parameters from html and convert to json object
     let inputs = collect_parameters();
-    const surf_opt = 'surface_optimisation';
-    inputs[surf_opt] = document.getElementById(get_parameter_id(surf_opt)).checked;
+    let search = Array();
+    for (const name of parameter_name_list) {
+        const element_value = document.getElementById(get_parameter_id(name)).value;
+        if (element_value) {
+            search.push(`${name}=${element_value}`)
+        }
+    }
 
     document.getElementById('sim-runtime').innerHTML = '...';
     console.log('simulation parameters:', inputs);
     document.getElementById('sim-submit').disabled = true;
-    sim_worker.postMessage(["run simulation", inputs]);
+    let start = performance.now();
+
+    const simulator_url = 'http://localhost:3000/' + `?${search.join('&')}`;
+    console.log('fetching from: ', simulator_url);
+    fetch(simulator_url).then(response => response.json())
+        .then(data => {
+            console.log('data:', data);
+
+            let end = performance.now();
+            let runtime = ((end - start) / 1000.0).toPrecision(3);
+            console.log(`Server Fetch Time: ${runtime}s`);
+            document.getElementById('sim-runtime').innerHTML = runtime;
+
+            // save, log and render simulation output
+            sim_output = data.result;
+            document.getElementById('results').classList.remove("hide");
+            document.getElementById('sim-submit').disabled = false;
+            console.log(sim_output);
+            render_simulation_table();
+            create_simulation_output_file_download();
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+        });
 }
 
 function create_simulation_output_file_download() {
