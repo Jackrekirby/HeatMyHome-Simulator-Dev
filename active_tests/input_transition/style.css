@@ -1,0 +1,66 @@
+body {
+  background-color: lightcoral;
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  align-items: center;
+  align-content: center;
+}
+
+.input-box {
+  background-color: lightblue;
+  width: 20rem;
+  border-color: white;
+  border-radius: 10px;
+  border-width: 5px;
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  align-items: center;
+  align-content: center;
+  margin: 1rem;
+  padding: 1rem;
+  height: 20rem;
+}
+
+.input-field {
+  display: flex;
+  flex-direction: row;
+  text-align: center;
+  align-items: center;
+  align-content: center;
+  justify-content: space-between;
+}
+
+.input-field > p {
+  padding: 1rem;
+}
+
+select {
+  width: 10rem;
+}
+
+.hide {
+  display: none;
+}
+
+button {
+  margin: 1rem;
+}
+
+#occupant-box {
+  background-color: lightgreen;
+}
+
+.fadein {
+  animation: fadeIn 1s;
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}

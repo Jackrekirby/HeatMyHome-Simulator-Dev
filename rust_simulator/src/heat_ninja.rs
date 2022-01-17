@@ -1279,7 +1279,7 @@ pub fn run_simulation(
                 };
 
                 // Formula based on this data https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/545249/DELTA_EE_DECC_TES_Final__1_.pdf
-                let capex_tes = 2068.3 * tes_volume.powf(0.553);
+                let capex_tes = 2068.3 * tes_volume.powf(0.553); // 0.1m3 = £579, 3.0m3 = £3797
 
                 capex_hp + capex_pv + capex_solar_thermal + capex_tes
             };

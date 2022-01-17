@@ -1,0 +1,57 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="style.css" />
+    <title>Document</title>
+  </head>
+  <body>
+    <div>
+      Lorem ipsum, dolor sit amet consectetur adipisicing elit. Voluptate at
+      corrupti quasi provident quod, architecto, neque magni quas, eligendi
+      optio consequatur excepturi nostrum? Animi, doloremque enim odio
+      asperiores excepturi repellat.
+    </div>
+    <div id="postcode-box" class="input-box">
+      <h1>Title</h1>
+      <div class="input-field fadein">
+        <p>Postcode</p>
+        <input id="postcode" type="text" />
+      </div>
+      <div class="input-field fadeIn">
+        <p>Address</p>
+        <select></select>
+      </div>
+      <button onclick="next_box();">Next</button>
+      <button onclick="back_box();">Back</button>
+    </div>
+    <div id="occupant-box" class="input-box hide">
+      <h1>Title 2</h1>
+      <div class="input-field">
+        <p>Occupants</p>
+        <input type="text" />
+      </div>
+      <div class="input-field">
+        <p>Temperature</p>
+        <input type="text" />
+      </div>
+      <button onclick="next_box();">Next</button>
+      <button onclick="back_box();">Back</button>
+    </div>
+    <div id="blah-blah" class="input-box hide">
+      <h1>Title 3</h1>
+      <div class="input-field">
+        <p>Blah</p>
+        <input type="text" />
+      </div>
+      <div class="input-field">
+        <p>Foo</p>
+        <input type="text" />
+      </div>
+      <button onclick="back_box();">Back</button>
+      <button onclick="done_box();">Done</button>
+    </div>
+    <script src="index.js"></script>
+  </body>
+</html>
