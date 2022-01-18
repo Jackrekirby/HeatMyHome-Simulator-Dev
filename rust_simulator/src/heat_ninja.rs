@@ -1,3 +1,4 @@
+use std::fs;
 #[cfg(not(target_family = "wasm"))]
 use rayon::prelude::*;
 #[cfg(target_family = "wasm")]
@@ -8,6 +9,17 @@ macro_rules! println {
     ( $( $t:tt )* ) => {
         web_sys::console::log_1(&format!( $( $t )* ).into());
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Config {
+    pub print_intermediates: bool,
+    pub print_results: bool,
+    pub use_surface_optimisation: bool,
+    pub use_multithreading: bool,
+    pub file_index: usize,
+    pub save_results_as_csv: bool,
+    pub save_results_as_json: bool,
 }
 
 pub fn run_simulation(
@@ -22,6 +34,7 @@ pub fn run_simulation(
     agile_tariff_per_hour_over_year: &[f32],
     hourly_outside_temperatures_over_year: &[f32],
     hourly_solar_irradiances_over_year: &[f32],
+    config: Config,
 ) -> String {
     // input arguments:
     /*
@@ -678,11 +691,19 @@ pub fn run_simulation(
         )
     };
 
-    let (yearly_erh_demand, yearly_erh_space_demand, yearly_erh_hot_water_demand, erh_max_hourly_demand) =
-        calculate_demand(hourly_erh_thermostat_temperatures);
+    let (
+        yearly_erh_demand,
+        yearly_erh_space_demand,
+        yearly_erh_hot_water_demand,
+        erh_max_hourly_demand,
+    ) = calculate_demand(hourly_erh_thermostat_temperatures);
 
-    let (yearly_hp_demand, yearly_hp_space_demand, yearly_hp_hot_water_demand, hp_max_hourly_demand) =
-        calculate_demand(hourly_hp_thermostat_temperatures);
+    let (
+        yearly_hp_demand,
+        yearly_hp_space_demand,
+        yearly_hp_hot_water_demand,
+        hp_max_hourly_demand,
+    ) = calculate_demand(hourly_hp_thermostat_temperatures);
 
     let discount_rate: f32 = 1.035; // 3.5% standard for UK HMRC
     let npc_years: u8 = 20;
@@ -971,8 +992,7 @@ pub fn run_simulation(
 
     let grid_emissions: f32 = 212.0;
 
-    let print_vars = false;
-    if print_vars {
+    if config.print_intermediates {
         println!("latitude: {:?}", latitude);
         println!("thermostat_temperature: {:?}", thermostat_temperature);
         println!(
@@ -1832,8 +1852,8 @@ pub fn run_simulation(
             let target_step: usize = 7;
             let gradient_factor: f32 = 0.15;
 
-            let x_num_segments = (x_size / target_step).max(min_num_segments.min(x_size-1));
-            let y_num_segments = (y_size / target_step).max(min_num_segments.min(y_size-1));
+            let x_num_segments = (x_size / target_step).max(min_num_segments.min(x_size - 1));
+            let y_num_segments = (y_size / target_step).max(min_num_segments.min(y_size - 1));
 
             let linearly_space = |range: usize, num_segments: usize| -> Vec<usize> {
                 let mut points: Vec<usize> = Vec::with_capacity(num_segments + 1);
@@ -2010,8 +2030,7 @@ pub fn run_simulation(
             }
         };
 
-        let use_surface_optimisation: bool = true;
-        if solar_size_range > 1 && tes_range > 1 && use_surface_optimisation {
+        if solar_size_range > 1 && tes_range > 1 && config.use_surface_optimisation {
             surface_optimiser(solar_size_range as usize, tes_range as usize);
         } else {
             for solar_size in 0..solar_size_range {
@@ -2023,32 +2042,22 @@ pub fn run_simulation(
         }
     };
 
-    #[cfg(target_family = "wasm")] // single-threaded
-    optimal_specifications
-        .iter_mut()
-        .for_each(|optimal_specification| simulate_heat_solar_combination(optimal_specification));
-
-    #[cfg(not(target_family = "wasm"))] // multi-threaded
-    optimal_specifications
-        .par_iter_mut()
-        .for_each(|optimal_specification| simulate_heat_solar_combination(optimal_specification));
-
-    for s in optimal_specifications {
-        println!(
-            "{:?}, {:?}, {}, {}, {}, {:?}, {}, {}, {}, {}",
-            s.heat_option as u8,
-            s.solar_option as u8,
-            s.pv_size,
-            s.solar_thermal_size,
-            s.tes_volume,
-            s.tariff,
-            s.operational_expenditure,
-            s.capital_expenditure,
-            s.net_present_cost,
-            s.operational_emissions
-        );
+    if config.use_multithreading {
+        #[cfg(not(target_family = "wasm"))]
+        optimal_specifications
+            .par_iter_mut()
+            .for_each(|optimal_specification| {
+                simulate_heat_solar_combination(optimal_specification)
+            });
+    } else {
+        optimal_specifications
+            .iter_mut()
+            .for_each(|optimal_specification| {
+                simulate_heat_solar_combination(optimal_specification)
+            });
     }
 
+    #[derive(Debug, Clone, Copy)]
     struct GenericSystem {
         operational_expenditure: f32,
         capital_expenditure: f32,
@@ -2060,7 +2069,7 @@ pub fn run_simulation(
                                 yearly_demand: f32,
                                 capital_expenditure: f32,
                                 emissions_per_kwh: f32|
-                                -> GenericSystem {
+     -> GenericSystem {
         let operational_expenditure = yearly_demand * cost_per_kwh;
         let net_present_cost =
             capital_expenditure + cumulative_discount_rate * operational_expenditure;
@@ -2103,7 +2112,8 @@ pub fn run_simulation(
     );
 
     // 12000 fuel cell + min TES size, CAPEX of 10 yr life adjusted for npc_years
-    let hydrogen_fuel_cell_capex = (12000.0 + 2068.3 * (0.1_f32).powf(0.553)) * ((npc_years / 10) as f32);
+    let hydrogen_fuel_cell_capex =
+        (12000.0 + 2068.3 * (0.1_f32).powf(0.553)) * ((npc_years / 10) as f32);
 
     let grey_hydrogen_fuel_cell = build_generic_system(
         0.049, // 4.9p / kWh A greener gas grid : What are the options, lowest cost
@@ -2130,62 +2140,148 @@ pub fn run_simulation(
         0.04, // 4p / kWh, avg gas bills £557, for 13, 600kWh = 4.09p / kWh includes equivalent standing charge
         yearly_boiler_demand,
         hydrogen_boiler_capex - 500.0, // estimated 500 less than hydrogen boiler
-        183.0,                       // 183 gCO2e / kWh for UK natural gas
+        183.0,                         // 183 gCO2e / kWh for UK natural gas
     );
 
-     let biomass_boiler = build_generic_system(
+    let biomass_boiler = build_generic_system(
         0.0411, // 4.11p / kWh
         yearly_boiler_demand,
         (9000.0 + epc_space_heating / 4.0).min(19000.0), // £10 - 19k for automatically fed biomass boilers,
         90.0, // 90gCO2 / kWh middle value from parliament post// 183 gCO2e / kWh for UK natural gas
     );
 
+    // print results as csv
+
+    if config.print_results || config.save_results_as_csv {
+        let mut csv_str: String = String::from("");
+        csv_str.push_str(&format!("heat_option, solar_option, pv_size, solar_thermal_size, tes_volume, tariff, \
+        operational_expenditure, capital_expenditure, net_present_cost, operational_emissions\n"));
+
+        for s in optimal_specifications {
+            csv_str.push_str(&format!(
+                "{:?}, {:?}, {}, {}, {:.1}, {:?}, {:.0}, {:.0}, {:.0}, {:.0}\n",
+                s.heat_option,
+                s.solar_option,
+                s.pv_size,
+                s.solar_thermal_size,
+                s.tes_volume,
+                s.tariff,
+                s.operational_expenditure,
+                s.capital_expenditure,
+                s.net_present_cost,
+                s.operational_emissions
+            ));
+        }
+
+        let csv_generic_system = |name: &str, subname: &str, system: GenericSystem| -> String {
+            format!(
+                "{}, {}, , , , , {:.0}, {:.0}, {:.0}, {:.0}\n",
+                name,
+                subname,
+                system.operational_expenditure,
+                system.capital_expenditure,
+                system.net_present_cost,
+                system.operational_emissions
+            )
+        };
+
+        csv_str.push_str(&csv_generic_system("HydrogenBoiler", "Grey", grey_hydrogen_boiler));
+        csv_str.push_str(&csv_generic_system("HydrogenBoiler", "Blue", blue_hydrogen_boiler));
+        csv_str.push_str(&csv_generic_system("HydrogenBoiler", "Green", green_hydrogen_boiler));
+        csv_str.push_str(&csv_generic_system("HydrogenFuelCell", "Grey", grey_hydrogen_fuel_cell));
+        csv_str.push_str(&csv_generic_system("HydrogenFuelCell", "Blue", blue_hydrogen_fuel_cell));
+        csv_str.push_str(&csv_generic_system("HydrogenFuelCell", "Green", green_hydrogen_fuel_cell));
+        csv_str.push_str(&csv_generic_system("BiomassBoiler", "", biomass_boiler));
+        csv_str.push_str(&csv_generic_system("GasBoiler", "", gas_boiler));
+
+        if config.save_results_as_csv {
+            let filename = format!("tests/results_{}.csv", config.file_index);
+            fs::write(&filename, &csv_str).expect(&format!("could not write to file: {}", &filename));
+            println!("saved results to {}", &filename);
+        }
+        if config.print_results {
+            println!("{}", &csv_str);
+        }
+    }
+
     // End of Simulation Calculation: Serialise results using JSON
 
     // serialise erh and hp demand
-    let serialise_demand = | heat_option: &str, total_demand, space_demand, hot_water, max_hourly | -> String {
-        format!("\
+    let serialise_demand =
+        |heat_option: &str, total_demand, space_demand, hot_water, max_hourly| -> String {
+            format!(
+                "\
         \"{}\": {{\
         \"hot-water\": {:.0},\
         \"space\": {:.0},\
         \"total\": {:.0},\
-        \"peak-hourly\": {:.5}}}", heat_option, hot_water, space_demand, total_demand, max_hourly)
-    };
+        \"peak-hourly\": {:.5}}}",
+                heat_option, hot_water, space_demand, total_demand, max_hourly
+            )
+        };
 
     let mut s = format!("{{\"demand\":{{");
-    s.push_str(&serialise_demand("boiler", yearly_erh_demand, yearly_erh_space_demand, yearly_erh_hot_water_demand, erh_max_hourly_demand));
+    s.push_str(&serialise_demand(
+        "boiler",
+        yearly_erh_demand,
+        yearly_erh_space_demand,
+        yearly_erh_hot_water_demand,
+        erh_max_hourly_demand,
+    ));
     s.push(',');
-    s.push_str(&serialise_demand("heat-pump", yearly_hp_demand, yearly_hp_space_demand, yearly_hp_hot_water_demand, hp_max_hourly_demand));
+    s.push_str(&serialise_demand(
+        "heat-pump",
+        yearly_hp_demand,
+        yearly_hp_space_demand,
+        yearly_hp_hot_water_demand,
+        hp_max_hourly_demand,
+    ));
     s.push_str("},");
-    s.push_str( &format!("\"systems\":{{"));
+    s.push_str(&format!("\"systems\":{{"));
 
     // serialise heat-solar systems
-    let heat_options_json = [ "electric-boiler", "air-source-heat-pump", "ground-source-heat-pump" ];
-    let solar_options_json = [ "none", "photovoltaic", "flat-plate", "evacuated-tube", "flat-plate-and-photovoltaic", "evacuated-tube-and-photovoltaic", "photovoltaic-thermal-hybrid" ];
+    let heat_options_json = [
+        "electric-boiler",
+        "air-source-heat-pump",
+        "ground-source-heat-pump",
+    ];
+    let solar_options_json = [
+        "none",
+        "photovoltaic",
+        "flat-plate",
+        "evacuated-tube",
+        "flat-plate-and-photovoltaic",
+        "evacuated-tube-and-photovoltaic",
+        "photovoltaic-thermal-hybrid",
+    ];
     for (i, system) in optimal_specifications.iter().enumerate() {
         if i % 7 == 0 {
             if i > 0 {
                 s.push_str("},");
             }
-            s.push_str(&format!("\"{}\":{{", heat_options_json[system.heat_option as usize]));
+            s.push_str(&format!(
+                "\"{}\":{{",
+                heat_options_json[system.heat_option as usize]
+            ));
         }
         // \"tariff\":{},\
         // system.tariff as u8,
-        s.push_str(&format!("\"{}\":{{\"pv-size\": {},\
+        s.push_str(&format!(
+            "\"{}\":{{\"pv-size\": {},\
 	    \"solar-thermal-size\":{},\
-	    \"thermal-energy-storage-volume\":{:.0},\
+	    \"thermal-energy-storage-volume\":{:.1},\
 	    \"operational-expenditure\":{:.0},\
 	    \"capital-expenditure\":{:.0},\
 	    \"net-present-cost\":{:.0},\
 	    \"operational-emissions\":{:.0}}}",
-                            solar_options_json[system.solar_option as usize],
-                            system.pv_size,
-                            system.solar_thermal_size,
-                            system.tes_volume,
-                            system.operational_expenditure,
-                            system.capital_expenditure,
-                            system.net_present_cost,
-                            system.operational_emissions
+            solar_options_json[system.solar_option as usize],
+            system.pv_size,
+            system.solar_thermal_size,
+            system.tes_volume,
+            system.operational_expenditure,
+            system.capital_expenditure,
+            system.net_present_cost,
+            system.operational_emissions
         ));
         if i % 7 < 6 {
             s.push(',');
@@ -2193,36 +2289,43 @@ pub fn run_simulation(
     }
 
     // serialise heat-only systems
-    let serialise_generic_system = | system: GenericSystem, name: &str | -> String {
-        format!("\"{}\":{{\
+    let serialise_generic_system = |system: &GenericSystem, name: &str| -> String {
+        format!(
+            "\"{}\":{{\
 	    \"operational-expenditure\":{:.0},\
 	    \"capital-expenditure\":{:.0},\
 	    \"net-present-cost\":{:.0},\
 	    \"operational-emissions\":{:.0}}}",
-         name,
-         system.operational_expenditure,
-         system.capital_expenditure,
-         system.net_present_cost,
-         system.operational_emissions
+            name,
+            system.operational_expenditure,
+            system.capital_expenditure,
+            system.net_present_cost,
+            system.operational_emissions
         )
     };
 
     s.push_str("},\"hydrogen-boiler\":{");
-    s.push_str(&serialise_generic_system(grey_hydrogen_boiler, &"grey"));
+    s.push_str(&serialise_generic_system(&grey_hydrogen_boiler, &"grey"));
     s.push(',');
-    s.push_str(&serialise_generic_system(blue_hydrogen_boiler, &"blue"));
+    s.push_str(&serialise_generic_system(&blue_hydrogen_boiler, &"blue"));
     s.push(',');
-    s.push_str(&serialise_generic_system(green_hydrogen_boiler, &"green"));
+    s.push_str(&serialise_generic_system(&green_hydrogen_boiler, &"green"));
     s.push_str("},\"hydrogen-fuel-cell\":{");
-    s.push_str(&serialise_generic_system(grey_hydrogen_fuel_cell, &"grey"));
+    s.push_str(&serialise_generic_system(&grey_hydrogen_fuel_cell, &"grey"));
     s.push(',');
-    s.push_str(&serialise_generic_system(blue_hydrogen_fuel_cell, &"blue"));
+    s.push_str(&serialise_generic_system(&blue_hydrogen_fuel_cell, &"blue"));
     s.push(',');
-    s.push_str(&serialise_generic_system(green_hydrogen_fuel_cell, &"green"));
+    s.push_str(&serialise_generic_system(
+        &green_hydrogen_fuel_cell,
+        &"green",
+    ));
     s.push_str("},");
-    s.push_str(&serialise_generic_system(gas_boiler, &"gas-boiler"));
+    s.push_str(&serialise_generic_system(&gas_boiler, &"gas-boiler"));
     s.push(',');
-    s.push_str(&serialise_generic_system(biomass_boiler, &"biomass-boiler"));
+    s.push_str(&serialise_generic_system(
+        &biomass_boiler,
+        &"biomass-boiler",
+    ));
     s.push_str("}}");
 
     s

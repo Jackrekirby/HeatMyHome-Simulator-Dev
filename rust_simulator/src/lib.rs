@@ -28,7 +28,7 @@ pub fn run_simulation(
     hourly_solar_irradiances_over_year: &[f32],
 ) -> String {
     println!(
-        "{}, {}, {}, {}, {}, {}, {}, {}",
+        "Inputs: {}, {}, {}, {}, {}, {}, {}, {}",
         thermostat_temperature,
         latitude,
         longitude,
@@ -38,6 +38,17 @@ pub fn run_simulation(
         epc_space_heating,
         tes_volume_max
     );
+
+    const CONFIG: heat_ninja::Config = heat_ninja::Config {
+        print_intermediates: false,
+        print_results: false,
+        use_surface_optimisation: true,
+        use_multithreading: false,
+        file_index: 0,
+        save_results_as_csv: false,
+        save_results_as_json: false,
+    };
+
     heat_ninja::run_simulation(
         thermostat_temperature,
         latitude,
@@ -50,5 +61,6 @@ pub fn run_simulation(
         &agile_tariff_per_hour_over_year,
         &hourly_outside_temperatures_over_year,
         &hourly_solar_irradiances_over_year,
+        CONFIG,
     )
 }

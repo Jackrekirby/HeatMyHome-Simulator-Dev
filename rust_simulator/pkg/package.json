@@ -1,11 +1,17 @@
 {
   "name": "rust_simulator",
+  "description": "A domestic water and space heating simulator, incorporating solar technologies",
   "version": "0.1.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jackrekirby/Heating-Simulator"
+  },
   "files": [
-    "rust_simulator_bg.wasm",
-    "rust_simulator.js",
-    "rust_simulator.d.ts"
+    "sim_lib_bg.wasm",
+    "sim_lib.js",
+    "sim_lib.d.ts"
   ],
-  "main": "rust_simulator.js",
-  "types": "rust_simulator.d.ts"
+  "main": "sim_lib.js",
+  "types": "sim_lib.d.ts"
 }
