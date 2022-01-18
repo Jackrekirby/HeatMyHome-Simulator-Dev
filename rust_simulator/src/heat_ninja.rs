@@ -14,12 +14,23 @@ macro_rules! println {
 #[derive(Clone, Copy, Debug)]
 pub struct Config {
     pub print_intermediates: bool,
-    pub print_results: bool,
-    pub use_surface_optimisation: bool,
-    pub use_multithreading: bool,
-    pub file_index: usize,
+    pub print_results_as_csv: bool,
+    pub print_results_as_json: bool,
     pub save_results_as_csv: bool,
     pub save_results_as_json: bool,
+    pub return_format: ReturnFormat,
+    pub file_index: usize,
+
+    pub use_surface_optimisation: bool,
+    pub use_multithreading: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[allow(dead_code)]
+pub enum ReturnFormat {
+    CSV,
+    JSON,
+    NONE,
 }
 
 pub fn run_simulation(
@@ -28,13 +39,13 @@ pub fn run_simulation(
     longitude: f32,
     num_occupants: u8,
     house_size: f32,
-    postcode: String,
+    postcode: &String,
     epc_space_heating: f32,
     tes_volume_max: f32,
     agile_tariff_per_hour_over_year: &[f32],
     hourly_outside_temperatures_over_year: &[f32],
     hourly_solar_irradiances_over_year: &[f32],
-    config: Config,
+    config: &Config,
 ) -> String {
     // input arguments:
     /*
@@ -2152,8 +2163,23 @@ pub fn run_simulation(
 
     // print results as csv
 
-    if config.print_results || config.save_results_as_csv {
-        let mut csv_str: String = String::from("");
+    let mut csv_str: String = String::from("");
+    if config.print_results_as_csv || config.save_results_as_csv {
+        csv_str.push_str("postcode, latitude, longitude, thermostat_temperature, \
+        num_occupants, house_size, epc_space_heating, tes_volume_max\n");
+
+        csv_str.push_str(&format!(
+            "{}, {}, {}, {}, {}, {}, {}, {}\n",
+            postcode,
+            latitude,
+            longitude,
+            thermostat_temperature,
+            num_occupants,
+            house_size,
+            epc_space_heating,
+            tes_volume_max
+        ));
+
         csv_str.push_str(&format!("heat_option, solar_option, pv_size, solar_thermal_size, tes_volume, tariff, \
         operational_expenditure, capital_expenditure, net_present_cost, operational_emissions\n"));
 
@@ -2199,134 +2225,150 @@ pub fn run_simulation(
             fs::write(&filename, &csv_str).expect(&format!("could not write to file: {}", &filename));
             println!("saved results to {}", &filename);
         }
-        if config.print_results {
+        if config.print_results_as_csv {
             println!("{}", &csv_str);
         }
     }
 
-    // End of Simulation Calculation: Serialise results using JSON
+    // Serialise results using JSON
 
-    // serialise erh and hp demand
-    let serialise_demand =
-        |heat_option: &str, total_demand, space_demand, hot_water, max_hourly| -> String {
-            format!(
-                "\
+    let mut json_str = String::from("");
+    if config.print_results_as_json || config.save_results_as_json {
+        // serialise erh and hp demand
+        let serialise_demand =
+            |heat_option: &str, total_demand, space_demand, hot_water, max_hourly| -> String {
+                format!(
+                    "\
         \"{}\": {{\
         \"hot-water\": {:.0},\
         \"space\": {:.0},\
         \"total\": {:.0},\
         \"peak-hourly\": {:.5}}}",
-                heat_option, hot_water, space_demand, total_demand, max_hourly
-            )
-        };
+                    heat_option, hot_water, space_demand, total_demand, max_hourly
+                )
+            };
 
-    let mut s = format!("{{\"demand\":{{");
-    s.push_str(&serialise_demand(
-        "boiler",
-        yearly_erh_demand,
-        yearly_erh_space_demand,
-        yearly_erh_hot_water_demand,
-        erh_max_hourly_demand,
-    ));
-    s.push(',');
-    s.push_str(&serialise_demand(
-        "heat-pump",
-        yearly_hp_demand,
-        yearly_hp_space_demand,
-        yearly_hp_hot_water_demand,
-        hp_max_hourly_demand,
-    ));
-    s.push_str("},");
-    s.push_str(&format!("\"systems\":{{"));
+        json_str.push_str(&format!("{{\"demand\":{{"));
+        json_str.push_str(&serialise_demand(
+            "boiler",
+            yearly_erh_demand,
+            yearly_erh_space_demand,
+            yearly_erh_hot_water_demand,
+            erh_max_hourly_demand,
+        ));
+        json_str.push(',');
+        json_str.push_str(&serialise_demand(
+            "heat-pump",
+            yearly_hp_demand,
+            yearly_hp_space_demand,
+            yearly_hp_hot_water_demand,
+            hp_max_hourly_demand,
+        ));
+        json_str.push_str("},");
+        json_str.push_str(&format!("\"systems\":{{"));
 
-    // serialise heat-solar systems
-    let heat_options_json = [
-        "electric-boiler",
-        "air-source-heat-pump",
-        "ground-source-heat-pump",
-    ];
-    let solar_options_json = [
-        "none",
-        "photovoltaic",
-        "flat-plate",
-        "evacuated-tube",
-        "flat-plate-and-photovoltaic",
-        "evacuated-tube-and-photovoltaic",
-        "photovoltaic-thermal-hybrid",
-    ];
-    for (i, system) in optimal_specifications.iter().enumerate() {
-        if i % 7 == 0 {
-            if i > 0 {
-                s.push_str("},");
+        // serialise heat-solar systems
+        let heat_options_json = [
+            "electric-boiler",
+            "air-source-heat-pump",
+            "ground-source-heat-pump",
+        ];
+        let solar_options_json = [
+            "none",
+            "photovoltaic",
+            "flat-plate",
+            "evacuated-tube",
+            "flat-plate-and-photovoltaic",
+            "evacuated-tube-and-photovoltaic",
+            "photovoltaic-thermal-hybrid",
+        ];
+        for (i, system) in optimal_specifications.iter().enumerate() {
+            if i % 7 == 0 {
+                if i > 0 {
+                    json_str.push_str("},");
+                }
+                json_str.push_str(&format!(
+                    "\"{}\":{{",
+                    heat_options_json[system.heat_option as usize]
+                ));
             }
-            s.push_str(&format!(
-                "\"{}\":{{",
-                heat_options_json[system.heat_option as usize]
-            ));
-        }
-        // \"tariff\":{},\
-        // system.tariff as u8,
-        s.push_str(&format!(
-            "\"{}\":{{\"pv-size\": {},\
+            // \"tariff\":{},\
+            // system.tariff as u8,
+            json_str.push_str(&format!(
+                "\"{}\":{{\"pv-size\": {},\
 	    \"solar-thermal-size\":{},\
 	    \"thermal-energy-storage-volume\":{:.1},\
 	    \"operational-expenditure\":{:.0},\
 	    \"capital-expenditure\":{:.0},\
 	    \"net-present-cost\":{:.0},\
 	    \"operational-emissions\":{:.0}}}",
-            solar_options_json[system.solar_option as usize],
-            system.pv_size,
-            system.solar_thermal_size,
-            system.tes_volume,
-            system.operational_expenditure,
-            system.capital_expenditure,
-            system.net_present_cost,
-            system.operational_emissions
-        ));
-        if i % 7 < 6 {
-            s.push(',');
+                solar_options_json[system.solar_option as usize],
+                system.pv_size,
+                system.solar_thermal_size,
+                system.tes_volume,
+                system.operational_expenditure,
+                system.capital_expenditure,
+                system.net_present_cost,
+                system.operational_emissions
+            ));
+            if i % 7 < 6 {
+                json_str.push(',');
+            }
         }
-    }
 
-    // serialise heat-only systems
-    let serialise_generic_system = |system: &GenericSystem, name: &str| -> String {
-        format!(
-            "\"{}\":{{\
+        // serialise heat-only systems
+        let serialise_generic_system = |system: &GenericSystem, name: &str| -> String {
+            format!(
+                "\"{}\":{{\
 	    \"operational-expenditure\":{:.0},\
 	    \"capital-expenditure\":{:.0},\
 	    \"net-present-cost\":{:.0},\
 	    \"operational-emissions\":{:.0}}}",
-            name,
-            system.operational_expenditure,
-            system.capital_expenditure,
-            system.net_present_cost,
-            system.operational_emissions
-        )
-    };
+                name,
+                system.operational_expenditure,
+                system.capital_expenditure,
+                system.net_present_cost,
+                system.operational_emissions
+            )
+        };
 
-    s.push_str("},\"hydrogen-boiler\":{");
-    s.push_str(&serialise_generic_system(&grey_hydrogen_boiler, &"grey"));
-    s.push(',');
-    s.push_str(&serialise_generic_system(&blue_hydrogen_boiler, &"blue"));
-    s.push(',');
-    s.push_str(&serialise_generic_system(&green_hydrogen_boiler, &"green"));
-    s.push_str("},\"hydrogen-fuel-cell\":{");
-    s.push_str(&serialise_generic_system(&grey_hydrogen_fuel_cell, &"grey"));
-    s.push(',');
-    s.push_str(&serialise_generic_system(&blue_hydrogen_fuel_cell, &"blue"));
-    s.push(',');
-    s.push_str(&serialise_generic_system(
-        &green_hydrogen_fuel_cell,
-        &"green",
-    ));
-    s.push_str("},");
-    s.push_str(&serialise_generic_system(&gas_boiler, &"gas-boiler"));
-    s.push(',');
-    s.push_str(&serialise_generic_system(
-        &biomass_boiler,
-        &"biomass-boiler",
-    ));
-    s.push_str("}}");
+        json_str.push_str("},\"hydrogen-boiler\":{");
+        json_str.push_str(&serialise_generic_system(&grey_hydrogen_boiler, &"grey"));
+        json_str.push(',');
+        json_str.push_str(&serialise_generic_system(&blue_hydrogen_boiler, &"blue"));
+        json_str.push(',');
+        json_str.push_str(&serialise_generic_system(&green_hydrogen_boiler, &"green"));
+        json_str.push_str("},\"hydrogen-fuel-cell\":{");
+        json_str.push_str(&serialise_generic_system(&grey_hydrogen_fuel_cell, &"grey"));
+        json_str.push(',');
+        json_str.push_str(&serialise_generic_system(&blue_hydrogen_fuel_cell, &"blue"));
+        json_str.push(',');
+        json_str.push_str(&serialise_generic_system(
+            &green_hydrogen_fuel_cell,
+            &"green",
+        ));
+        json_str.push_str("},");
+        json_str.push_str(&serialise_generic_system(&gas_boiler, &"gas-boiler"));
+        json_str.push(',');
+        json_str.push_str(&serialise_generic_system(
+            &biomass_boiler,
+            &"biomass-boiler",
+        ));
+        json_str.push_str("}}");
 
-    s
+        if config.save_results_as_json {
+            let filename = format!("tests/results_{}.json", config.file_index);
+            fs::write(&filename, &json_str).expect(&format!("could not write to file: {}", &filename));
+            println!("saved results to {}", &filename);
+        }
+        if config.print_results_as_json {
+            println!("{}", &json_str);
+        }
+    }
+
+    match config.return_format {
+        ReturnFormat::JSON => json_str,
+        ReturnFormat::CSV => csv_str,
+        ReturnFormat::NONE => String::from("config set to return empty string"),
+    }
 }

@@ -41,12 +41,14 @@ pub fn run_simulation(
 
     const CONFIG: heat_ninja::Config = heat_ninja::Config {
         print_intermediates: false,
-        print_results: false,
-        use_surface_optimisation: true,
+        print_results_as_csv: false,
         use_multithreading: false,
-        file_index: 0,
         save_results_as_csv: false,
         save_results_as_json: false,
+        print_results_as_json: false,
+        file_index: 0,
+        use_surface_optimisation: true,
+        return_format: heat_ninja::ReturnFormat::JSON
     };
 
     heat_ninja::run_simulation(
@@ -55,12 +57,12 @@ pub fn run_simulation(
         longitude,
         num_occupants,
         house_size,
-        postcode,
+        &postcode,
         epc_space_heating,
         tes_volume_max,
         &agile_tariff_per_hour_over_year,
         &hourly_outside_temperatures_over_year,
         &hourly_solar_irradiances_over_year,
-        CONFIG,
+        &CONFIG,
     )
 }

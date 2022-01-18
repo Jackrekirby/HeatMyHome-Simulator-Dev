@@ -1,9 +1,21 @@
 use std::env;
 use std::fs::File;
 use std::io::{prelude::*, BufReader};
+use std::ops::Range;
 use std::time::Instant;
 
 mod heat_ninja;
+
+struct Inputs {
+    thermostat_temperature: f32,
+    latitude: f32,
+    longitude: f32,
+    num_occupants: u8,
+    house_size: f32,
+    postcode: String,
+    epc_space_heating: f32,
+    tes_volume_max: f32,
+}
 
 fn import_file_data(
     assets_dir: String,
@@ -60,58 +72,35 @@ fn import_file_data(
 }
 
 #[allow(dead_code)]
-fn run_simulation() {
-    let now = Instant::now();
-    let latitude: f32 = 52.3833;
-    let longitude: f32 = -1.5833;
+fn run_simulation(inputs: &Inputs, config: &heat_ninja::Config) {
     let (
         agile_tariff_per_hour_over_year,
         hourly_outside_temperatures_over_year,
         hourly_solar_irradiances_over_year,
-    ) = import_file_data(String::from("assets/"), latitude, longitude);
-
-    const CONFIG: heat_ninja::Config = heat_ninja::Config {
-        print_intermediates: false,
-        print_results: false,
-        use_surface_optimisation: true,
-        use_multithreading: true,
-        file_index: 0,
-        save_results_as_csv: true,
-        save_results_as_json: false,
-    };
+    ) = import_file_data(String::from("assets/"), inputs.latitude, inputs.longitude);
 
     let json_results = heat_ninja::run_simulation(
-        20.0,
-        latitude,
-        longitude,
-        2,
-        60.0,
-        String::from("CV4 7AL"),
-        3000.0,
-        0.5,
+        inputs.thermostat_temperature,
+        inputs.latitude,
+        inputs.longitude,
+        inputs.num_occupants,
+        inputs.house_size,
+        &inputs.postcode,
+        inputs.epc_space_heating,
+        inputs.tes_volume_max,
         &agile_tariff_per_hour_over_year,
         &hourly_outside_temperatures_over_year,
         &hourly_solar_irradiances_over_year,
-        CONFIG,
+        &config,
     );
 
-    println!("{}", json_results);
-    println!("{} ms", now.elapsed().as_millis());
+    if config.return_format != heat_ninja::ReturnFormat::NONE {
+        println!("{}", json_results);
+    }
 }
 
 #[allow(dead_code)]
-fn run_simulation_using_input_file() {
-    let mut config: heat_ninja::Config = heat_ninja::Config {
-        print_intermediates: false,
-        print_results: false,
-        use_surface_optimisation: false,
-        use_multithreading: true,
-        file_index: 0,
-        save_results_as_csv: true,
-        save_results_as_json: false,
-    };
-
-    println!("config: {:?}", config);
+fn run_simulations_using_input_file() {
     // import input list file
     let filepath = "assets/input_list.csv";
     println!("filepath: {}", filepath);
@@ -129,8 +118,7 @@ fn run_simulation_using_input_file() {
         let unwrapped_line = line.unwrap();
         let parts: Vec<&str> = unwrapped_line.split(',').collect();
         println!("{:?}", parts);
-
-        let postcode = parts[0].parse().unwrap();
+        let postcode: String = String::from(parts[0]);
         let latitude: f32 = parts[1].parse().unwrap();
         let longitude: f32 = parts[2].parse().unwrap();
         let num_occupants: u8 = parts[3].parse().unwrap();
@@ -139,28 +127,19 @@ fn run_simulation_using_input_file() {
         let thermostat_temperature: f32 = parts[5].parse().unwrap();
         let epc_space_heating: f32 = parts[7].parse().unwrap();
 
-        // import assets
-        let (
-            agile_tariff_per_hour_over_year,
-            hourly_outside_temperatures_over_year,
-            hourly_solar_irradiances_over_year,
-        ) = import_file_data(String::from("assets/"), latitude, longitude);
-
-        config.file_index = i;
-        let _json_results = heat_ninja::run_simulation(
-            thermostat_temperature,
+        let inputs = Inputs {
+            postcode,
             latitude,
             longitude,
             num_occupants,
             house_size,
-            postcode,
-            epc_space_heating,
             tes_volume_max,
-            &agile_tariff_per_hour_over_year,
-            &hourly_outside_temperatures_over_year,
-            &hourly_solar_irradiances_over_year,
-            config,
-        );
+            thermostat_temperature,
+            epc_space_heating,
+        };
+
+        run_and_compare(inputs);
+
         println!(
             "i:{}, elapsed: {} ms, total {} s",
             i,
@@ -170,9 +149,106 @@ fn run_simulation_using_input_file() {
     }
 }
 
+#[allow(dead_code)]
+fn compare_result_folders(file_name_fmt_a: fn(usize) -> String, file_name_fmt_b: fn(usize) -> String, index_range: Range<usize>) {
+    for file_index in index_range {
+        println!("File Index: {}", file_index);
+        let file_name_a: String = file_name_fmt_a(file_index);
+        let file_name_b: String = file_name_fmt_b(file_index);
+
+        compare_result_files(file_name_a, file_name_b);
+    }
+}
+
+#[allow(dead_code)]
+fn compare_result_files(file_name_a: String, file_name_b: String) {
+    let file_a = File::open(&file_name_a).expect("cannot read file.");
+    let reader_a = BufReader::new(&file_a);
+
+    let file_b = File::open(&file_name_b).expect("cannot read file.");
+    let reader_b = BufReader::new(&file_b);
+
+    for ((line_index, result_a), result_b) in reader_a.lines().enumerate().zip(reader_b.lines()) {
+        //println!("{}, {}, {}", line_index, line_a.unwrap(), line_b.unwrap());
+        let line_a = result_a.expect(&format!("could not read line: {} of {}", line_index, &file_name_a));
+        let line_b = result_b.expect(&format!("could not read line: {} of {}", line_index, &file_name_b));
+        if line_a != line_b {
+            panic!("line {} of files: {}, {}, do not match: \n{}\n{}",
+                line_index, file_name_a, file_name_b, line_a, line_b
+            );
+        }
+    }
+}
+
+#[allow(dead_code)]
+fn run_simulation_with_default_parameters() {
+    let config: heat_ninja::Config = heat_ninja::Config {
+        print_intermediates: false,
+        print_results_as_csv: false,
+        use_surface_optimisation: true,
+        use_multithreading: true,
+        file_index: 1,
+        save_results_as_csv: true,
+        save_results_as_json: false,
+        print_results_as_json: false,
+        return_format: heat_ninja::ReturnFormat::NONE
+    };
+
+    let inputs = Inputs {
+        thermostat_temperature: 20.0,
+        latitude: 52.3833, longitude: -1.5833,
+        num_occupants: 2, house_size: 60.0,
+        postcode: String::from("CV4 7AL"),
+        epc_space_heating: 3000.0, tes_volume_max: 0.5
+    };
+
+    run_simulation(&inputs, &config);
+}
+
+#[allow(dead_code)]
+fn run_and_compare(inputs: Inputs) {
+    let mut config: heat_ninja::Config = heat_ninja::Config {
+        print_intermediates: false,
+        print_results_as_csv: false,
+        use_surface_optimisation: true,
+        use_multithreading: true,
+        file_index: 0,
+        save_results_as_csv: true,
+        save_results_as_json: false,
+        print_results_as_json: false,
+        return_format: heat_ninja::ReturnFormat::NONE
+    };
+
+    run_simulation(&inputs, &config);
+    config.file_index = 1;
+    config.use_surface_optimisation = false;
+    run_simulation(&inputs, &config);
+
+    compare_result_files(
+        String::from("tests/results_0.csv"),
+        String::from("tests/results_1.csv")
+    );
+}
+
 fn main() {
     let path = env::current_dir().expect("Could not locate current directory");
     println!("The current directory is {}", path.display());
-    run_simulation_using_input_file();
-    //run_simulation();
+    let _a = || {
+        compare_result_folders(
+            |file_index: usize| -> String { format!("tests/no_surface_optimisation/results_{}.csv", file_index) },
+            |file_index: usize| -> String { format!("tests/surface_optimisation/results_{}.csv", file_index) },
+            1..100
+        );
+    };
+    run_simulations_using_input_file();
+    //run_simulation_with_default_parameters();
+
+    let inputs = Inputs {
+        thermostat_temperature: 20.0,
+        latitude: 52.3833, longitude: -1.5833,
+        num_occupants: 2, house_size: 60.0,
+        postcode: String::from("CV4 7AL"),
+        epc_space_heating: 3000.0, tes_volume_max: 0.5
+    };
+    //run_and_compare(inputs)
 }
