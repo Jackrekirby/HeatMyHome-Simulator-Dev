@@ -18,6 +18,7 @@ pub struct Config {
     pub print_results_as_json: bool,
     pub save_results_as_csv: bool,
     pub save_results_as_json: bool,
+    pub save_surfaces: bool,
     pub return_format: ReturnFormat,
     pub file_index: usize,
 
@@ -1895,10 +1896,9 @@ pub fn run_simulation(
             }
 
             let mut get_or_calculate = |i: usize, j: usize, min_z: &mut f32| -> f32 {
-                let k: usize = i + j * x_size;
+                let k: usize = i * y_size + j;
                 if zs[k] == f32::MAX {
-                    find_optimal_specification(optimal_specification, i as u16, j as u8);
-                    let z = optimal_specification.net_present_cost;
+                    let z = find_optimal_specification(optimal_specification, i as u16, j as u8);
                     if z < *min_z {
                         *min_z = z
                     };
@@ -2039,15 +2039,65 @@ pub fn run_simulation(
                 }
                 index_rects = next_rects;
             }
+
+            if config.save_surfaces {
+                let mut surface_str = String::from("");
+                for i in 0..x_size {
+                    for j in 0..y_size {
+                        let k: usize = i * y_size + j;
+                        if zs[k] != f32::MAX {
+                            surface_str.push_str(&format!("{:.2}", zs[k]));
+                            // print!("# ");
+                        } else {
+                            surface_str.push_str(&format!("NaN"));
+                            // print!("- ");
+                        }
+
+                        if j == y_size - 1 {
+                            surface_str.push('\n');
+                        } else {
+                            surface_str.push(',');
+                        }
+                    }
+                    // print!("\n");
+                }
+                // print!("\n\n");
+
+                let surface_file_index = config.file_index * 21
+                    + optimal_specification.heat_option as usize * 7
+                    + optimal_specification.solar_option as usize;
+                let filename = format!("tests/surfaces/o{}.csv", surface_file_index);
+                fs::write(&filename, &surface_str).expect(&format!("could not write to file: {}", &filename));
+            }
         };
 
         if solar_size_range > 1 && tes_range > 1 && config.use_surface_optimisation {
             surface_optimiser(solar_size_range as usize, tes_range as usize);
         } else {
-            for solar_size in 0..solar_size_range {
-                for tes_option in 0..tes_range {
-                    let _min_tariff_net_present_cost: f32 =
+            if config.save_surfaces {
+                let mut surface_str = String::from("");
+
+                for solar_size in 0..solar_size_range {
+                    for tes_option in 0..tes_range {
+                        //let k: usize = i + j * x_size;
+                        let min_npc_of_tariffs = find_optimal_specification(optimal_specification, solar_size, tes_option);
+                        if tes_option == tes_range - 1 {
+                            surface_str.push_str(&format!("{:.2}\n", min_npc_of_tariffs));
+                        } else {
+                            surface_str.push_str(&format!("{:.2},", min_npc_of_tariffs));
+                        }
+                    }
+                }
+                let surface_file_index = config.file_index * 21
+                    + optimal_specification.heat_option as usize * 7
+                    + optimal_specification.solar_option as usize;
+                let filename = format!("tests/surfaces/{}.csv", surface_file_index);
+                fs::write(&filename, &surface_str).expect(&format!("could not write to file: {}", &filename));
+            } else {
+                for solar_size in 0..solar_size_range {
+                    for tes_option in 0..tes_range {
                         find_optimal_specification(optimal_specification, solar_size, tes_option);
+                    }
                 }
             }
         }
@@ -2199,11 +2249,11 @@ pub fn run_simulation(
             ));
         }
 
-        let csv_generic_system = |name: &str, subname: &str, system: GenericSystem| -> String {
+        let csv_generic_system = |name: &str, sub_name: &str, system: GenericSystem| -> String {
             format!(
                 "{}, {}, , , , , {:.0}, {:.0}, {:.0}, {:.0}\n",
                 name,
-                subname,
+                sub_name,
                 system.operational_expenditure,
                 system.capital_expenditure,
                 system.net_present_cost,
@@ -2221,7 +2271,8 @@ pub fn run_simulation(
         csv_str.push_str(&csv_generic_system("GasBoiler", "", gas_boiler));
 
         if config.save_results_as_csv {
-            let filename = format!("tests/results_{}.csv", config.file_index);
+            let surf_prefix = if config.use_surface_optimisation { "o" } else {""};
+            let filename = format!("tests/results/{}{}.csv", surf_prefix, config.file_index);
             fs::write(&filename, &csv_str).expect(&format!("could not write to file: {}", &filename));
             println!("saved results to {}", &filename);
         }
@@ -2357,7 +2408,7 @@ pub fn run_simulation(
         json_str.push_str("}}");
 
         if config.save_results_as_json {
-            let filename = format!("tests/results_{}.json", config.file_index);
+            let filename = format!("tests/results/{}.json", config.file_index);
             fs::write(&filename, &json_str).expect(&format!("could not write to file: {}", &filename));
             println!("saved results to {}", &filename);
         }

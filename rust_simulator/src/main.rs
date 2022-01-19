@@ -123,9 +123,9 @@ fn run_simulations_using_input_file() {
         let longitude: f32 = parts[2].parse().unwrap();
         let num_occupants: u8 = parts[3].parse().unwrap();
         let house_size: f32 = parts[4].parse().unwrap();
-        let tes_volume_max: f32 = parts[6].parse().unwrap();
+        let tes_volume_max: f32 = parts[7].parse().unwrap();
         let thermostat_temperature: f32 = parts[5].parse().unwrap();
-        let epc_space_heating: f32 = parts[7].parse().unwrap();
+        let epc_space_heating: f32 = parts[6].parse().unwrap();
 
         let inputs = Inputs {
             postcode,
@@ -138,7 +138,7 @@ fn run_simulations_using_input_file() {
             epc_space_heating,
         };
 
-        run_and_compare(inputs);
+        run_and_compare(inputs, i);
 
         println!(
             "i:{}, elapsed: {} ms, total {} s",
@@ -191,42 +191,43 @@ fn run_simulation_with_default_parameters() {
         save_results_as_csv: true,
         save_results_as_json: false,
         print_results_as_json: false,
-        return_format: heat_ninja::ReturnFormat::NONE
+        return_format: heat_ninja::ReturnFormat::NONE,
+        save_surfaces: true
     };
 
     let inputs = Inputs {
         thermostat_temperature: 20.0,
         latitude: 52.3833, longitude: -1.5833,
-        num_occupants: 2, house_size: 60.0,
+        num_occupants: 2, house_size: 360.0,
         postcode: String::from("CV4 7AL"),
-        epc_space_heating: 3000.0, tes_volume_max: 0.5
+        epc_space_heating: 3000.0, tes_volume_max: 3.0
     };
 
     run_simulation(&inputs, &config);
 }
 
 #[allow(dead_code)]
-fn run_and_compare(inputs: Inputs) {
+fn run_and_compare(inputs: Inputs, file_index: usize) {
     let mut config: heat_ninja::Config = heat_ninja::Config {
         print_intermediates: false,
         print_results_as_csv: false,
         use_surface_optimisation: true,
         use_multithreading: true,
-        file_index: 0,
+        file_index: file_index,
         save_results_as_csv: true,
         save_results_as_json: false,
         print_results_as_json: false,
-        return_format: heat_ninja::ReturnFormat::NONE
+        return_format: heat_ninja::ReturnFormat::NONE,
+        save_surfaces: true
     };
 
     run_simulation(&inputs, &config);
-    config.file_index = 1;
     config.use_surface_optimisation = false;
     run_simulation(&inputs, &config);
 
     compare_result_files(
-        String::from("tests/results_0.csv"),
-        String::from("tests/results_1.csv")
+        String::from(format!("tests/results/o{}.csv", file_index)),
+        String::from(format!("tests/results/{}.csv", file_index))
     );
 }
 
@@ -243,7 +244,7 @@ fn main() {
     run_simulations_using_input_file();
     //run_simulation_with_default_parameters();
 
-    let inputs = Inputs {
+    let _inputs = Inputs {
         thermostat_temperature: 20.0,
         latitude: 52.3833, longitude: -1.5833,
         num_occupants: 2, house_size: 60.0,

@@ -46,9 +46,10 @@ pub fn run_simulation(
         save_results_as_csv: false,
         save_results_as_json: false,
         print_results_as_json: false,
+        save_surfaces: false,
         file_index: 0,
         use_surface_optimisation: true,
-        return_format: heat_ninja::ReturnFormat::JSON
+        return_format: heat_ninja::ReturnFormat::JSON,
     };
 
     heat_ninja::run_simulation(
