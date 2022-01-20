@@ -1862,7 +1862,7 @@ pub fn run_simulation(
 
             let min_num_segments: usize = 3;
             let target_step: usize = 7;
-            let gradient_factor: f32 = 0.15;
+            let gradient_factor: f32 = 15.0;
 
             let x_num_segments = (x_size / target_step).max(min_num_segments.min(x_size - 1));
             let y_num_segments = (y_size / target_step).max(min_num_segments.min(y_size - 1));
@@ -1989,12 +1989,15 @@ pub fn run_simulation(
                         let i12: usize = if di == 1 { r.i2 } else { r.i1 + di / 2 };
                         if i12 != r.i2 {
                             get_or_calculate(i12, r.j1, &mut min_z);
-                            get_or_calculate(i12, r.j1, &mut min_z);
+                            get_or_calculate(i12, r.j2, &mut min_z);
                         }
                         let j12: usize = if dj == 1 { r.j2 } else { r.j1 + dj / 2 };
                         if j12 != r.j2 {
                             get_or_calculate(r.i1, j12, &mut min_z);
                             get_or_calculate(r.i2, j12, &mut min_z);
+                        }
+                        if i12 != r.i2 && j12 != r.j2 {
+                            get_or_calculate(i12, j12, &mut min_z);
                         }
 
                         let sub_i1: bool = i12 - r.i1 > 1;
@@ -2047,10 +2050,10 @@ pub fn run_simulation(
                         let k: usize = i * y_size + j;
                         if zs[k] != f32::MAX {
                             surface_str.push_str(&format!("{:.2}", zs[k]));
-                            // print!("# ");
+                            print!("# ");
                         } else {
                             surface_str.push_str(&format!("NaN"));
-                            // print!("- ");
+                            print!("- ");
                         }
 
                         if j == y_size - 1 {
@@ -2059,15 +2062,16 @@ pub fn run_simulation(
                             surface_str.push(',');
                         }
                     }
-                    // print!("\n");
+                    print!("\n");
                 }
-                // print!("\n\n");
 
                 let surface_file_index = config.file_index * 21
                     + optimal_specification.heat_option as usize * 7
                     + optimal_specification.solar_option as usize;
                 let filename = format!("tests/surfaces/o{}.csv", surface_file_index);
+                println!("filename: {}", filename);
                 fs::write(&filename, &surface_str).expect(&format!("could not write to file: {}", &filename));
+                print!("\n\n");
             }
         };
 

@@ -102,6 +102,7 @@ fn run_simulation(inputs: &Inputs, config: &heat_ninja::Config) {
 #[allow(dead_code)]
 fn run_simulations_using_input_file() {
     // import input list file
+    // postcode, latitude, longitude, num_occupants, house_size, temp, epc_space_heating, tes_max
     let filepath = "assets/input_list.csv";
     println!("filepath: {}", filepath);
     let file = File::open(filepath).expect("cannot read file.");
@@ -110,11 +111,8 @@ fn run_simulations_using_input_file() {
     let all_now = Instant::now();
 
     for (i, line) in reader.lines().enumerate() {
+        if i < 6 {continue;}
         let just_now = Instant::now();
-        if i == 0 {
-            println!("{:?}", line.expect("could not get line"));
-            continue;
-        };
         let unwrapped_line = line.unwrap();
         let parts: Vec<&str> = unwrapped_line.split(',').collect();
         println!("{:?}", parts);
@@ -156,12 +154,12 @@ fn compare_result_folders(file_name_fmt_a: fn(usize) -> String, file_name_fmt_b:
         let file_name_a: String = file_name_fmt_a(file_index);
         let file_name_b: String = file_name_fmt_b(file_index);
 
-        compare_result_files(file_name_a, file_name_b);
+        compare_result_files(file_name_a, file_name_b, file_index);
     }
 }
 
 #[allow(dead_code)]
-fn compare_result_files(file_name_a: String, file_name_b: String) {
+fn compare_result_files(file_name_a: String, file_name_b: String, file_index: usize) {
     let file_a = File::open(&file_name_a).expect("cannot read file.");
     let reader_a = BufReader::new(&file_a);
 
@@ -173,8 +171,8 @@ fn compare_result_files(file_name_a: String, file_name_b: String) {
         let line_a = result_a.expect(&format!("could not read line: {} of {}", line_index, &file_name_a));
         let line_b = result_b.expect(&format!("could not read line: {} of {}", line_index, &file_name_b));
         if line_a != line_b {
-            panic!("line {} of files: {}, {}, do not match: \n{}\n{}",
-                line_index, file_name_a, file_name_b, line_a, line_b
+            panic!("line {} of files: {}, {}, do not match: \n{}\n{}\n. Surface: {}",
+                line_index, file_name_a, file_name_b, line_a, line_b, file_index * 21 + line_index - 3,
             );
         }
     }
@@ -187,7 +185,7 @@ fn run_simulation_with_default_parameters() {
         print_results_as_csv: false,
         use_surface_optimisation: true,
         use_multithreading: true,
-        file_index: 1,
+        file_index: 0,
         save_results_as_csv: true,
         save_results_as_json: false,
         print_results_as_json: false,
@@ -227,7 +225,8 @@ fn run_and_compare(inputs: Inputs, file_index: usize) {
 
     compare_result_files(
         String::from(format!("tests/results/o{}.csv", file_index)),
-        String::from(format!("tests/results/{}.csv", file_index))
+        String::from(format!("tests/results/{}.csv", file_index)),
+        file_index,
     );
 }
 
