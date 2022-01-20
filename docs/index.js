@@ -247,10 +247,14 @@ async function call_postcode_api(postcode) {
         .then(data => {
             if (data['status'] == 200) {
                 console.log('postcode api data:', data);
-                document.getElementById('sim-latitude').value = data.result.latitude;
-                document.getElementById('sim-longitude').value = data.result.longitude;
-                document.getElementById('sim-postcode').style.textDecorationLine = 'none';
-                return true;
+                if (data.result.latitude != null && data.result.longitude != null) {
+                    document.getElementById('sim-latitude').value = data.result.latitude;
+                    document.getElementById('sim-longitude').value = data.result.longitude;
+                    document.getElementById('sim-postcode').style.textDecorationLine = 'none';
+                    return true;
+                } {
+                    throw new Error('Postcode found on API, but does not have an associated latitude and longitude.');
+                }
             } else {
                 throw new Error(data['error']);
             }
@@ -289,7 +293,14 @@ function find_address() {
             }
         })
         .catch((error) => {
-            console.error('Error:', error);
+            console.error('Could not find postcode on EPC API:', error);
+            let element = document.getElementById('sim-addresses');
+            while (element.getElementsByTagName('option').length > 0) {
+                element.removeChild(element.lastChild);
+            }
+            let option_ele = document.createElement('option');
+            option_ele.text = 'Postcode not on EPC API';
+            element.appendChild(option_ele);
         });;
 }
 
@@ -322,7 +333,7 @@ function get_epc_data() {
             }
         })
         .catch((error) => {
-            console.error('Error:', error);
+            console.error('Could not get EPC Certificate:', error);
         });;
 }
 

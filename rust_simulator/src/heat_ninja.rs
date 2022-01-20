@@ -1860,12 +1860,16 @@ pub fn run_simulation(
                 zs.push(f32::MAX);
             }
 
-            let min_num_segments: usize = 3;
+            //let min_num_segments: usize = 3;
             let target_step: usize = 7;
-            let gradient_factor: f32 = 15.0;
+            let gradient_factor: f32 = 0.5;
+            let target_num_segments = 4;
 
-            let x_num_segments = (x_size / target_step).max(min_num_segments.min(x_size - 1));
-            let y_num_segments = (y_size / target_step).max(min_num_segments.min(y_size - 1));
+            let x_num_segments = target_num_segments.max(x_size / target_step).min(x_size - 1);
+            let y_num_segments = target_num_segments.max(y_size / target_step).min(y_size - 1);
+
+            //let x_num_segments = (x_size / target_step).max(min_num_segments.min(x_size - 1));
+            //let y_num_segments = (y_size / target_step).max(min_num_segments.min(y_size - 1));
 
             let linearly_space = |range: usize, num_segments: usize| -> Vec<usize> {
                 let mut points: Vec<usize> = Vec::with_capacity(num_segments + 1);
@@ -1954,6 +1958,7 @@ pub fn run_simulation(
 
             while !index_rects.is_empty() {
                 let mut next_rects: Vec<Rect> = Vec::new();
+                let min_z_of_iter: f32 = min_z;
                 // println!("Rect Group");
                 for r in &index_rects {
                     // calculate distance between indices
@@ -1984,7 +1989,7 @@ pub fn run_simulation(
                     let min_z_estimate: f32 =
                         min_local_z - (max_mx * (di as f32) + max_my * (dj as f32));
                     // if segment could have npc lower than the current min subdivide
-                    if min_z_estimate < min_z {
+                    if min_z_estimate < min_z_of_iter {
                         // subdivide segments that can be divided further, otherwise leave at unit length
                         let i12: usize = if di == 1 { r.i2 } else { r.i1 + di / 2 };
                         if i12 != r.i2 {
@@ -2050,10 +2055,10 @@ pub fn run_simulation(
                         let k: usize = i * y_size + j;
                         if zs[k] != f32::MAX {
                             surface_str.push_str(&format!("{:.2}", zs[k]));
-                            print!("# ");
+                            //print!("# ");
                         } else {
                             surface_str.push_str(&format!("NaN"));
-                            print!("- ");
+                            //print!("- ");
                         }
 
                         if j == y_size - 1 {
@@ -2062,20 +2067,20 @@ pub fn run_simulation(
                             surface_str.push(',');
                         }
                     }
-                    print!("\n");
+                    //print!("\n");
                 }
 
                 let surface_file_index = config.file_index * 21
                     + optimal_specification.heat_option as usize * 7
                     + optimal_specification.solar_option as usize;
                 let filename = format!("tests/surfaces/o{}.csv", surface_file_index);
-                println!("filename: {}", filename);
+                //println!("filename: {}", filename);
                 fs::write(&filename, &surface_str).expect(&format!("could not write to file: {}", &filename));
-                print!("\n\n");
+                //print!("\n\n");
             }
         };
 
-        if solar_size_range > 1 && tes_range > 1 && config.use_surface_optimisation {
+        if solar_size_range > 3 && tes_range > 3 && (solar_size_range * tes_range as u16 > 25) && config.use_surface_optimisation {
             surface_optimiser(solar_size_range as usize, tes_range as usize);
         } else {
             if config.save_surfaces {
@@ -2414,7 +2419,7 @@ pub fn run_simulation(
         if config.save_results_as_json {
             let filename = format!("tests/results/{}.json", config.file_index);
             fs::write(&filename, &json_str).expect(&format!("could not write to file: {}", &filename));
-            println!("saved results to {}", &filename);
+            //println!("saved results to {}", &filename);
         }
         if config.print_results_as_json {
             println!("{}", &json_str);

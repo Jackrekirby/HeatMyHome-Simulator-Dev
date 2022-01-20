@@ -27,7 +27,7 @@ fn import_file_data(
 
     let import_weather_data = |filepath: String| -> [f32; 8760] {
         //println!("filepath: {}", filepath);
-        let file = File::open(filepath).expect("cannot read file.");
+        let file = File::open(&filepath).expect(&format!("cannot read file: {}", &filepath));
         let reader = BufReader::new(file);
         let mut data: [f32; 8760] = [0.0; 8760];
         for (i, line) in reader.lines().enumerate() {
@@ -103,7 +103,7 @@ fn run_simulation(inputs: &Inputs, config: &heat_ninja::Config) {
 fn run_simulations_using_input_file() {
     // import input list file
     // postcode, latitude, longitude, num_occupants, house_size, temp, epc_space_heating, tes_max
-    let filepath = "assets/input_list.csv";
+    let filepath = "tests/input_list.csv";
     println!("filepath: {}", filepath);
     let file = File::open(filepath).expect("cannot read file.");
     let reader = BufReader::new(file);
@@ -111,7 +111,7 @@ fn run_simulations_using_input_file() {
     let all_now = Instant::now();
 
     for (i, line) in reader.lines().enumerate() {
-        if i < 6 {continue;}
+        if i < 955 {continue;}
         let just_now = Instant::now();
         let unwrapped_line = line.unwrap();
         let parts: Vec<&str> = unwrapped_line.split(',').collect();
@@ -230,6 +230,38 @@ fn run_and_compare(inputs: Inputs, file_index: usize) {
     );
 }
 
+#[allow(dead_code)]
+fn surf_test() {
+    let min_num_segments: usize = 3;
+    let target_step: usize = 7;
+    let x_size = 35;
+    let target_num_segments = 4;
+
+    let x_num_segments = target_num_segments.max(x_size / target_step).min(x_size - 1);
+
+    let x_num_segments2 = (x_size / target_step).max(min_num_segments.min(x_size - 1));
+
+    let linearly_space = |range: usize, num_segments: usize| -> Vec<usize> {
+        let mut points: Vec<usize> = Vec::with_capacity(num_segments + 1);
+        let step: f32 = (range as f32) / (num_segments as f32);
+        let mut i: f32 = 0.0;
+        loop {
+            let j: usize = i.round() as usize;
+            points.push(j);
+            if j >= range {
+                break;
+            }
+            i += step;
+        }
+        println!("Points: {:?}", points);
+        points
+    };
+    println!("num segs: {}, {}", x_num_segments, x_num_segments2);
+
+    // calculate initial points to search on surface
+    let _is: Vec<usize> = linearly_space(x_size - 1, x_num_segments);
+}
+
 fn main() {
     let path = env::current_dir().expect("Could not locate current directory");
     println!("The current directory is {}", path.display());
@@ -242,13 +274,5 @@ fn main() {
     };
     run_simulations_using_input_file();
     //run_simulation_with_default_parameters();
-
-    let _inputs = Inputs {
-        thermostat_temperature: 20.0,
-        latitude: 52.3833, longitude: -1.5833,
-        num_occupants: 2, house_size: 60.0,
-        postcode: String::from("CV4 7AL"),
-        epc_space_heating: 3000.0, tes_volume_max: 0.5
-    };
-    //run_and_compare(inputs)
+    //surf_test();
 }
