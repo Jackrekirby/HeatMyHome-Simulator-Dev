@@ -5,7 +5,7 @@ dir = "../rust_simulator/tests/surfaces";
 
 i = 0;
 figure;
-for w = 1:5000
+for w = 1:30000
     disp(w);
     filename = sprintf("%s/%i.csv", dir, w);
     if isfile(filename)
@@ -33,7 +33,10 @@ for w = 1:5000
                 zlabel("NPC");
                 i = i + 1;
                 %saveas(gcf,sprintf("c_images/%i.png", i));
-                pause(0.0001);
+                if length(w) > 1
+                    pause;
+                end
+                pause
             end
         end
     end

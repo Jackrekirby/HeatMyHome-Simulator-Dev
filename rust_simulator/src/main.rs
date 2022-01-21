@@ -1,6 +1,6 @@
-use std::env;
+use std::{env};
 use std::fs::File;
-use std::io::{prelude::*, BufReader};
+use std::io::{prelude::*, BufReader, LineWriter};
 use std::ops::Range;
 use std::time::Instant;
 
@@ -107,15 +107,19 @@ fn run_simulations_using_input_file() {
     println!("filepath: {}", filepath);
     let file = File::open(filepath).expect("cannot read file.");
     let reader = BufReader::new(file);
-
     let all_now = Instant::now();
 
+    let file = File::create("tests/performance.csv").expect("could not open tests/performance.csv");
+    let mut file: LineWriter<File> = LineWriter::new(file);
+
+    file.write_fmt(format_args!("Index,Nodes,Gain,Opt-Elapsed,No-Opt-Elapsed,No-Opt-Elapsed/Node\n")).expect("could not write to tests/performance.csv");
+
     for (i, line) in reader.lines().enumerate() {
-        if i < 955 {continue;}
+        if i < 28 {continue;}
         let just_now = Instant::now();
         let unwrapped_line = line.unwrap();
         let parts: Vec<&str> = unwrapped_line.split(',').collect();
-        println!("{:?}", parts);
+
         let postcode: String = String::from(parts[0]);
         let latitude: f32 = parts[1].parse().unwrap();
         let longitude: f32 = parts[2].parse().unwrap();
@@ -124,6 +128,8 @@ fn run_simulations_using_input_file() {
         let tes_volume_max: f32 = parts[7].parse().unwrap();
         let thermostat_temperature: f32 = parts[5].parse().unwrap();
         let epc_space_heating: f32 = parts[6].parse().unwrap();
+
+        println!("Index: {}, Inputs: {:?}", i, parts);
 
         let inputs = Inputs {
             postcode,
@@ -136,11 +142,10 @@ fn run_simulations_using_input_file() {
             epc_space_heating,
         };
 
-        run_and_compare(inputs, i);
+        run_and_compare(inputs, i, &mut file);
 
         println!(
-            "i:{}, elapsed: {} ms, total {} s",
-            i,
+            "Elapsed: {} ms, Total: {} s",
             just_now.elapsed().as_millis(),
             all_now.elapsed().as_secs()
         );
@@ -205,7 +210,7 @@ fn run_simulation_with_default_parameters() {
 }
 
 #[allow(dead_code)]
-fn run_and_compare(inputs: Inputs, file_index: usize) {
+fn run_and_compare(inputs: Inputs, file_index: usize, file: &mut LineWriter<File>) {
     let mut config: heat_ninja::Config = heat_ninja::Config {
         print_intermediates: false,
         print_results_as_csv: false,
@@ -219,9 +224,26 @@ fn run_and_compare(inputs: Inputs, file_index: usize) {
         save_surfaces: true
     };
 
+    let total_nodes: u16 = ((180 * ((inputs.house_size / 8.0) as u16) - 30) as f32 * inputs.tes_volume_max) as u16;
+
+    let now = Instant::now();
     run_simulation(&inputs, &config);
+    let opt_elapsed: u128 = now.elapsed().as_millis();
+
+    let now = Instant::now();
     config.use_surface_optimisation = false;
     run_simulation(&inputs, &config);
+    let no_opt_elapsed: u128 = now.elapsed().as_millis();
+
+    println!("Nodes: {:.0}, % Gain: {:.2}, Elapsed: {} vs {} ms, Elapsed/Node: {} ms", total_nodes,
+             no_opt_elapsed as f32 / opt_elapsed as f32, opt_elapsed, no_opt_elapsed, no_opt_elapsed as f32 / total_nodes as f32);
+
+    file.write_fmt(format_args!(
+        "{},{:.0},{:.2},{},{},{:.4}\n", file_index, total_nodes,
+        no_opt_elapsed as f32 / opt_elapsed as f32,
+        opt_elapsed, no_opt_elapsed,
+        no_opt_elapsed as f32 / total_nodes as f32))
+       .expect("could not write to tests/performance.csv");
 
     compare_result_files(
         String::from(format!("tests/results/o{}.csv", file_index)),

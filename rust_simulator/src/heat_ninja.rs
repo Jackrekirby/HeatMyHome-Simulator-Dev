@@ -973,6 +973,9 @@ pub fn run_simulation(
         coldest_outside_temperature_of_year
     };
 
+    // ((solar_maximum / 2) * 5 + (solar_maximum / 2 - 1) * 2 + 1) * 3 * (tes_max / 0.1)
+    // nodes = (90 * floor(house_size / 2) - 30) * tes_max
+
     let ground_temperature: f32 = 15.0 - (latitude - 50.0) * (4.0 / 9.0); // Linear regression ground temp across UK at 100m depth
     let tes_range: u8 = ((tes_volume_max + 0.01) / 0.1) as u8; // +0.01 avoids floating point error;
     let solar_maximum: u16 = ((house_size / 8.0) as u16) * 2; // Quarter of the roof for solar, even number
@@ -1862,7 +1865,7 @@ pub fn run_simulation(
 
             //let min_num_segments: usize = 3;
             let target_step: usize = 7;
-            let gradient_factor: f32 = 0.5;
+            let gradient_factor: f32 = 0.4;
             let target_num_segments = 4;
 
             let x_num_segments = target_num_segments.max(x_size / target_step).min(x_size - 1);
@@ -2049,12 +2052,14 @@ pub fn run_simulation(
             }
 
             if config.save_surfaces {
+                //let mut nodes_searched: u16 = 0;
                 let mut surface_str = String::from("");
                 for i in 0..x_size {
                     for j in 0..y_size {
                         let k: usize = i * y_size + j;
                         if zs[k] != f32::MAX {
                             surface_str.push_str(&format!("{:.2}", zs[k]));
+                            //nodes_searched += 1;
                             //print!("# ");
                         } else {
                             surface_str.push_str(&format!("NaN"));
@@ -2073,6 +2078,9 @@ pub fn run_simulation(
                 let surface_file_index = config.file_index * 21
                     + optimal_specification.heat_option as usize * 7
                     + optimal_specification.solar_option as usize;
+
+                //println!("surf: {}, nodes: {} / {} = {:.1}%", surface_file_index, nodes_searched, z_size, (nodes_searched as f32)/(z_size as f32) * 100.0);
+
                 let filename = format!("tests/surfaces/o{}.csv", surface_file_index);
                 //println!("filename: {}", filename);
                 fs::write(&filename, &surface_str).expect(&format!("could not write to file: {}", &filename));
@@ -2283,7 +2291,7 @@ pub fn run_simulation(
             let surf_prefix = if config.use_surface_optimisation { "o" } else {""};
             let filename = format!("tests/results/{}{}.csv", surf_prefix, config.file_index);
             fs::write(&filename, &csv_str).expect(&format!("could not write to file: {}", &filename));
-            println!("saved results to {}", &filename);
+            //println!("saved results to {}", &filename);
         }
         if config.print_results_as_csv {
             println!("{}", &csv_str);
