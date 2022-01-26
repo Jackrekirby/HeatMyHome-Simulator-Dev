@@ -5,7 +5,7 @@ dir = "../rust_simulator/tests/surfaces";
 
 i = 0;
 figure;
-for w = 1:30000
+for w = 22
     disp(w);
     filename = sprintf("%s/%i.csv", dir, w);
     if isfile(filename)

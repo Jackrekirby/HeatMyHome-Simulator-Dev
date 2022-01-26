@@ -3,6 +3,11 @@ clc;
 
 filename = "../rust_simulator/tests/performance.csv";
 t = readtable(filename);
+
+filename = "../rust_simulator/tests/input_list.csv";
+t2 = readtable(filename);
+tes_maxes = t2.Var8;
+
 %%
 clc
 make_fig()
@@ -19,6 +24,10 @@ plot(x1, y1, 'b-');
 p = polyfit(t.Nodes, t.Opt_Elapsed/1000, 2)
 y1 = polyval(p,x1);
 plot(x1, y1, 'b-');
+
+nodes_per_sec = 135 / 615
+
+plot(x1, x1 * nodes_per_sec, 'b-');
 
 hold off;
 grid on;

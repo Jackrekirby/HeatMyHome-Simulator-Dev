@@ -1,4 +1,4 @@
-import init, { run_simulation } from "../../rust_simulator/pkg/rust_simulator.js";
+import init, { run_simulation } from "../../rust_simulator/pkg/sim_lib.js";
 
 function build_file_path(latitude, longitude, datatype) {
     return `lat_${(Math.round(latitude * 2.0) / 2.0).toFixed(1)}_lon_${(Math.round(longitude * 2.0) / 2.0).toFixed(1)}.csv`;
@@ -30,6 +30,7 @@ async function submit_simulation(postcode, latitude, longitude, num_occupants, h
         house_size, postcode, epc_space_heating, tes_volume_max, agile_tariff, outside_temps, solar_irradiances);
     const t1 = performance.now();
     console.log(`Time: ${t1 - t0} milliseconds.`);
+    console.log('result:', result);
     return result;
 }
 

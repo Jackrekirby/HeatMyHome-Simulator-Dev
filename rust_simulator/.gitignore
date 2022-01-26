@@ -1,4 +1,4 @@
 /target
 /.idea
 .vs/
-tests/
+*.7z

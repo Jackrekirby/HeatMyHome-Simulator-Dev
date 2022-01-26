@@ -4,12 +4,12 @@ import cheerio from 'cheerio'
 import cors from 'cors';
 import fs from 'fs';
 // localhost
-import { run_simulation } from "../../rust_simulator/pkg/rust_simulator.js"
+import { run_simulation } from "../../rust_simulator/pkg/sim_lib.js"
 // server
 // REMOVE PERFORMANCE!
-//import { run_simulation } from "./pkg/rust_simulator.js";
+//import { run_simulation } from "./pkg/sim_lib.js";
 
-const API_VERSION = 0.2;
+const API_VERSION = 0.3;
 // setup
 // npm init
 // npm i cheerio
@@ -54,6 +54,7 @@ app.get('/simulate', async (req, res) => {
             p.occupants, p.floor_area, p.temperature, p.space_heating, p.tes_max);
         //const t1 = performance.now();
         //console.log(`Time: ${t1 - t0} milliseconds.`);
+        console.log('result', result);
         res.send({ 'status': 200, 'inputs': p, 'result': JSON.parse(result) });
     } else {
         let url = req.get('host') + req.originalUrl;

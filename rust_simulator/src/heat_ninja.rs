@@ -1,6 +1,7 @@
-use std::fs;
 #[cfg(not(target_family = "wasm"))]
 use rayon::prelude::*;
+#[cfg(not(target_family = "wasm"))]
+use std::fs;
 #[cfg(target_family = "wasm")]
 extern crate web_sys;
 // A macro to provide `println!(..)`-style syntax for `console.log` logging.
@@ -1833,7 +1834,6 @@ pub fn run_simulation(
                 if net_present_cost < min_tariff_net_present_cost {
                     min_tariff_net_present_cost = net_present_cost;
                 } // for surface optimisation
-
                 if net_present_cost < min_net_present_cost {
                     // Lowest cost TES & tariff for heating tech. For OpEx vs CapEx plots, with optimised TES and tariff
                     min_net_present_cost = net_present_cost;
@@ -1863,16 +1863,16 @@ pub fn run_simulation(
                 zs.push(f32::MAX);
             }
 
-            //let min_num_segments: usize = 3;
-            let target_step: usize = 7;
-            let gradient_factor: f32 = 0.4;
-            let target_num_segments = 4;
+            let target_step: usize = 100;
+            let gradient_factor: f32 = if z_size > 200 { 0.12 } else { 0.38 };
+            let target_num_segments = 3;
 
-            let x_num_segments = target_num_segments.max(x_size / target_step).min(x_size - 1);
-            let y_num_segments = target_num_segments.max(y_size / target_step).min(y_size - 1);
-
-            //let x_num_segments = (x_size / target_step).max(min_num_segments.min(x_size - 1));
-            //let y_num_segments = (y_size / target_step).max(min_num_segments.min(y_size - 1));
+            let x_num_segments = target_num_segments
+                .max(x_size / target_step)
+                .min(x_size - 1);
+            let y_num_segments = target_num_segments
+                .max(y_size / target_step)
+                .min(y_size - 1);
 
             let linearly_space = |range: usize, num_segments: usize| -> Vec<usize> {
                 let mut points: Vec<usize> = Vec::with_capacity(num_segments + 1);
@@ -1903,7 +1903,7 @@ pub fn run_simulation(
             }
 
             let mut get_or_calculate = |i: usize, j: usize, min_z: &mut f32| -> f32 {
-                let k: usize = i * y_size + j;
+                let k: usize = i + x_size * j;
                 if zs[k] == f32::MAX {
                     let z = find_optimal_specification(optimal_specification, i as u16, j as u8);
                     if z < *min_z {
@@ -2051,12 +2051,13 @@ pub fn run_simulation(
                 index_rects = next_rects;
             }
 
+            #[cfg(not(target_family = "wasm"))]
             if config.save_surfaces {
                 //let mut nodes_searched: u16 = 0;
                 let mut surface_str = String::from("");
-                for i in 0..x_size {
-                    for j in 0..y_size {
-                        let k: usize = i * y_size + j;
+                for j in 0..y_size {
+                    for i in 0..x_size {
+                        let k: usize = i + x_size * j;
                         if zs[k] != f32::MAX {
                             surface_str.push_str(&format!("{:.2}", zs[k]));
                             //nodes_searched += 1;
@@ -2066,7 +2067,7 @@ pub fn run_simulation(
                             //print!("- ");
                         }
 
-                        if j == y_size - 1 {
+                        if i == x_size - 1 {
                             surface_str.push('\n');
                         } else {
                             surface_str.push(',');
@@ -2083,33 +2084,46 @@ pub fn run_simulation(
 
                 let filename = format!("tests/surfaces/o{}.csv", surface_file_index);
                 //println!("filename: {}", filename);
-                fs::write(&filename, &surface_str).expect(&format!("could not write to file: {}", &filename));
+                fs::write(&filename, &surface_str)
+                    .expect(&format!("could not write to file: {}", &filename));
                 //print!("\n\n");
             }
         };
 
-        if solar_size_range > 3 && tes_range > 3 && (solar_size_range * tes_range as u16 > 25) && config.use_surface_optimisation {
+        if solar_size_range > 3
+            && tes_range > 3
+            && (solar_size_range * tes_range as u16 > 55)
+            && config.use_surface_optimisation
+        {
             surface_optimiser(solar_size_range as usize, tes_range as usize);
         } else {
             if config.save_surfaces {
-                let mut surface_str = String::from("");
+                #[cfg(not(target_family = "wasm"))]
+                {
+                    let mut surface_str = String::from("");
 
-                for solar_size in 0..solar_size_range {
-                    for tes_option in 0..tes_range {
-                        //let k: usize = i + j * x_size;
-                        let min_npc_of_tariffs = find_optimal_specification(optimal_specification, solar_size, tes_option);
-                        if tes_option == tes_range - 1 {
-                            surface_str.push_str(&format!("{:.2}\n", min_npc_of_tariffs));
-                        } else {
-                            surface_str.push_str(&format!("{:.2},", min_npc_of_tariffs));
+                    for solar_size in 0..solar_size_range {
+                        for tes_option in 0..tes_range {
+                            //let k: usize = i + j * x_size;
+                            let min_npc_of_tariffs = find_optimal_specification(
+                                optimal_specification,
+                                solar_size,
+                                tes_option,
+                            );
+                            if tes_option == tes_range - 1 {
+                                surface_str.push_str(&format!("{:.2}\n", min_npc_of_tariffs));
+                            } else {
+                                surface_str.push_str(&format!("{:.2},", min_npc_of_tariffs));
+                            }
                         }
                     }
+                    let surface_file_index = config.file_index * 21
+                        + optimal_specification.heat_option as usize * 7
+                        + optimal_specification.solar_option as usize;
+                    let filename = format!("tests/surfaces/{}.csv", surface_file_index);
+                    fs::write(&filename, &surface_str)
+                        .expect(&format!("could not write to file: {}", &filename));
                 }
-                let surface_file_index = config.file_index * 21
-                    + optimal_specification.heat_option as usize * 7
-                    + optimal_specification.solar_option as usize;
-                let filename = format!("tests/surfaces/{}.csv", surface_file_index);
-                fs::write(&filename, &surface_str).expect(&format!("could not write to file: {}", &filename));
             } else {
                 for solar_size in 0..solar_size_range {
                     for tes_option in 0..tes_range {
@@ -2230,13 +2244,20 @@ pub fn run_simulation(
 
     // print results as csv
 
+    #[allow(unused_mut)]
     let mut csv_str: String = String::from("");
-    if config.print_results_as_csv || config.save_results_as_csv {
-        csv_str.push_str("postcode, latitude, longitude, thermostat_temperature, \
-        num_occupants, house_size, epc_space_heating, tes_volume_max\n");
+    #[cfg(not(target_family = "wasm"))]
+    if config.print_results_as_csv
+        || config.save_results_as_csv
+        || config.return_format == ReturnFormat::CSV
+    {
+        csv_str.push_str(
+            "postcode,latitude,longitude,thermostat_temperature,\
+        num_occupants,house_size,epc_space_heating,tes_volume_max\n",
+        );
 
         csv_str.push_str(&format!(
-            "{}, {}, {}, {}, {}, {}, {}, {}\n",
+            "{},{},{},{:.1},{},{:.1},{},{}\n",
             postcode,
             latitude,
             longitude,
@@ -2247,12 +2268,37 @@ pub fn run_simulation(
             tes_volume_max
         ));
 
-        csv_str.push_str(&format!("heat_option, solar_option, pv_size, solar_thermal_size, tes_volume, tariff, \
-        operational_expenditure, capital_expenditure, net_present_cost, operational_emissions\n"));
+        csv_str.push_str(&format!(
+            "thermal_transmittance,{:.2},optimised_epc_demand,{:.0}\n",
+            thermal_transmittance, optimised_epc_demand
+        ));
+
+        csv_str.push_str(&format!(
+            "heat_tech,hot_water_demand,space_demand,total_demand,max_hourly_demand\n"
+        ));
+        csv_str.push_str(&format!(
+            "hp,{:.0},{:.0},{:.0},{:.4}\n",
+            yearly_hp_hot_water_demand,
+            yearly_hp_space_demand,
+            yearly_hp_demand,
+            hp_max_hourly_demand
+        ));
+        csv_str.push_str(&format!(
+            "boiler,{:.0},{:.0},{:.0},{:.4}\n",
+            yearly_erh_hot_water_demand,
+            yearly_erh_space_demand,
+            yearly_erh_demand,
+            erh_max_hourly_demand
+        ));
+
+        csv_str.push_str(&format!(
+            "heat_option,solar_option,pv_size,solar_thermal_size,tes_volume,tariff,\
+        operational_expenditure,capital_expenditure,net_present_cost,operational_emissions\n"
+        ));
 
         for s in optimal_specifications {
             csv_str.push_str(&format!(
-                "{:?}, {:?}, {}, {}, {:.1}, {:?}, {:.0}, {:.0}, {:.0}, {:.0}\n",
+                "{:?},{:?},{},{},{:.1},{:?},{:.0},{:.0},{:.0},{:.0}\n",
                 s.heat_option,
                 s.solar_option,
                 s.pv_size,
@@ -2268,7 +2314,7 @@ pub fn run_simulation(
 
         let csv_generic_system = |name: &str, sub_name: &str, system: GenericSystem| -> String {
             format!(
-                "{}, {}, , , , , {:.0}, {:.0}, {:.0}, {:.0}\n",
+                "{},{},,,,,{:.0},{:.0},{:.0},{:.0}\n",
                 name,
                 sub_name,
                 system.operational_expenditure,
@@ -2278,19 +2324,48 @@ pub fn run_simulation(
             )
         };
 
-        csv_str.push_str(&csv_generic_system("HydrogenBoiler", "Grey", grey_hydrogen_boiler));
-        csv_str.push_str(&csv_generic_system("HydrogenBoiler", "Blue", blue_hydrogen_boiler));
-        csv_str.push_str(&csv_generic_system("HydrogenBoiler", "Green", green_hydrogen_boiler));
-        csv_str.push_str(&csv_generic_system("HydrogenFuelCell", "Grey", grey_hydrogen_fuel_cell));
-        csv_str.push_str(&csv_generic_system("HydrogenFuelCell", "Blue", blue_hydrogen_fuel_cell));
-        csv_str.push_str(&csv_generic_system("HydrogenFuelCell", "Green", green_hydrogen_fuel_cell));
+        csv_str.push_str(&csv_generic_system(
+            "HydrogenBoiler",
+            "Grey",
+            grey_hydrogen_boiler,
+        ));
+        csv_str.push_str(&csv_generic_system(
+            "HydrogenBoiler",
+            "Blue",
+            blue_hydrogen_boiler,
+        ));
+        csv_str.push_str(&csv_generic_system(
+            "HydrogenBoiler",
+            "Green",
+            green_hydrogen_boiler,
+        ));
+        csv_str.push_str(&csv_generic_system(
+            "HydrogenFuelCell",
+            "Grey",
+            grey_hydrogen_fuel_cell,
+        ));
+        csv_str.push_str(&csv_generic_system(
+            "HydrogenFuelCell",
+            "Blue",
+            blue_hydrogen_fuel_cell,
+        ));
+        csv_str.push_str(&csv_generic_system(
+            "HydrogenFuelCell",
+            "Green",
+            green_hydrogen_fuel_cell,
+        ));
         csv_str.push_str(&csv_generic_system("BiomassBoiler", "", biomass_boiler));
         csv_str.push_str(&csv_generic_system("GasBoiler", "", gas_boiler));
 
         if config.save_results_as_csv {
-            let surf_prefix = if config.use_surface_optimisation { "o" } else {""};
+            let surf_prefix = if config.use_surface_optimisation {
+                "o"
+            } else {
+                ""
+            };
             let filename = format!("tests/results/{}{}.csv", surf_prefix, config.file_index);
-            fs::write(&filename, &csv_str).expect(&format!("could not write to file: {}", &filename));
+            fs::write(&filename, &csv_str)
+                .expect(&format!("could not write to file: {}", &filename));
             //println!("saved results to {}", &filename);
         }
         if config.print_results_as_csv {
@@ -2301,7 +2376,10 @@ pub fn run_simulation(
     // Serialise results using JSON
 
     let mut json_str = String::from("");
-    if config.print_results_as_json || config.save_results_as_json {
+    if config.print_results_as_json
+        || config.save_results_as_json
+        || config.return_format == ReturnFormat::JSON
+    {
         // serialise erh and hp demand
         let serialise_demand =
             |heat_option: &str, total_demand, space_demand, hot_water, max_hourly| -> String {
@@ -2311,12 +2389,21 @@ pub fn run_simulation(
         \"hot-water\": {:.0},\
         \"space\": {:.0},\
         \"total\": {:.0},\
-        \"peak-hourly\": {:.5}}}",
+        \"peak-hourly\": {:.4}}}",
                     heat_option, hot_water, space_demand, total_demand, max_hourly
                 )
             };
-
-        json_str.push_str(&format!("{{\"demand\":{{"));
+        json_str.push('{');
+        json_str.push_str(&format!(
+            "\"thermal-transmittance\":{:.2},",
+            thermal_transmittance
+        ));
+        json_str.push_str(&format!(
+            "\"optimised-epc-demand\":{:.0},",
+            optimised_epc_demand
+        ));
+        json_str.push_str(&format!("\"npc-years\":{},", npc_years));
+        json_str.push_str(&format!("\"demand\":{{"));
         json_str.push_str(&serialise_demand(
             "boiler",
             yearly_erh_demand,
@@ -2424,9 +2511,11 @@ pub fn run_simulation(
         ));
         json_str.push_str("}}");
 
+        #[cfg(not(target_family = "wasm"))]
         if config.save_results_as_json {
             let filename = format!("tests/results/{}.json", config.file_index);
-            fs::write(&filename, &json_str).expect(&format!("could not write to file: {}", &filename));
+            fs::write(&filename, &json_str)
+                .expect(&format!("could not write to file: {}", &filename));
             //println!("saved results to {}", &filename);
         }
         if config.print_results_as_json {
