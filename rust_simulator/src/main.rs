@@ -209,11 +209,12 @@ fn run_simulation_with_default_parameters() {
     let config: heat_ninja::Config = heat_ninja::Config {
         print_intermediates: false,
         print_results_as_csv: false,
-        use_surface_optimisation: true,
-        use_multithreading: true,
-        file_index: 0,
+        use_surface_optimisation: false,
+        use_multithreading: false,
+        file_index: 1,
         save_results_as_csv: true,
         save_results_as_json: true,
+        save_all_nodes_as_csv: true,
         print_results_as_json: false,
         return_format: heat_ninja::ReturnFormat::JSON,
         save_surfaces: false,
@@ -227,10 +228,11 @@ fn run_simulation_with_default_parameters() {
         house_size: 60.0,
         postcode: String::from("CV4 7AL"),
         epc_space_heating: 3000.0,
-        tes_volume_max: 0.5,
+        tes_volume_max: 3.0,
     };
 
     run_simulation(&inputs, &config);
+    run_python_simulation(&inputs, 1);
 }
 
 #[allow(dead_code)]
@@ -242,6 +244,7 @@ fn run_and_compare(inputs: Inputs, file_index: usize, file: &mut LineWriter<File
         use_multithreading: true,
         file_index: file_index,
         save_results_as_csv: true,
+        save_all_nodes_as_csv: false,
         save_results_as_json: false,
         print_results_as_json: false,
         return_format: heat_ninja::ReturnFormat::NONE,
@@ -635,6 +638,7 @@ fn compare_rust_and_python(inputs: &Inputs, file_index: usize, file: &mut LineWr
         file_index: file_index,
         save_results_as_csv: true,
         save_results_as_json: false,
+        save_all_nodes_as_csv: false,
         print_results_as_json: false,
         return_format: heat_ninja::ReturnFormat::NONE,
         save_surfaces: true,
@@ -706,26 +710,26 @@ fn main() {
     run_simulation_with_default_parameters();
     //surf_test();
 
-    let inputs = Inputs {
-        thermostat_temperature: 20.0,
-        latitude: 52.3833,
-        longitude: -1.5833,
-        num_occupants: 2,
-        house_size: 60.0,
-        postcode: String::from("CV4 7AL"),
-        epc_space_heating: 3000.0,
-        tes_volume_max: 0.5,
-    };
+    // let inputs = Inputs {
+    //     thermostat_temperature: 20.0,
+    //     latitude: 52.3833,
+    //     longitude: -1.5833,
+    //     num_occupants: 2,
+    //     house_size: 60.0,
+    //     postcode: String::from("CV4 7AL"),
+    //     epc_space_heating: 3000.0,
+    //     tes_volume_max: 0.5,
+    // };
 
-    let file = File::create("tests/rust_python_performance.csv")
-        .expect("could not open tests/rust_python_performance.csv");
-    let mut file: LineWriter<File> = LineWriter::new(file);
-
-    file.write_fmt(format_args!(
-        "Index,Nodes,Gain,Rust-Elapsed,Python-Elapsed,\
-    Rust-Elapsed/Node,Python-Elapsed/Node\n"
-    ))
-    .expect("could not write to tests/performance.csv");
+    // let file = File::create("tests/rust_python_performance.csv")
+    //     .expect("could not open tests/rust_python_performance.csv");
+    // let mut file: LineWriter<File> = LineWriter::new(file);
+    //
+    // file.write_fmt(format_args!(
+    //     "Index,Nodes,Gain,Rust-Elapsed,Python-Elapsed,\
+    // Rust-Elapsed/Node,Python-Elapsed/Node\n"
+    // ))
+    // .expect("could not write to tests/performance.csv");
     //run_python_simulation(&inputs, 6);
     //compare_rust_and_python(&inputs, 6, &mut file);
 }

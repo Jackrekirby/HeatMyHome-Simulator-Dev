@@ -21,6 +21,7 @@ print(f'working directory: {os.getcwd()}')
 #     os.chdir("..")
 
 # command line args: python src/heat_ninja_cml.py 2 "CV4 7AL" 3000 60.0 0.5 20.0 0
+# python C:/dev/wasm_website/rust_simulator/tests/pysim.py 2 "CV4 7AL" 52.3833 -1.5833 3000 60.0 0.5 20.0 C:/dev/wasm_website/rust_simulator/tests/results/py_108.csv
 
 # create parser
 parser = argparse.ArgumentParser()
@@ -40,7 +41,7 @@ args = parser.parse_args()
 print("Arguments:", args)
 
 PRINT_CURRENT_OPTION = False
-QUICK_RUN = True # runs only 2 heat-solar combos
+QUICK_RUN = False # runs only 2 heat-solar combos
 ASSETS_DIR = "C:/dev/wasm_website/rust_simulator/assets/" # "C:/dev/heat_ninja/data/"
 START_TIME = time.time()
 
@@ -58,6 +59,7 @@ Temp = args.temp  # Thermostat set point
 Save_Location = args.save_location
 Latitude = args.latitude
 Longitude = args.longitude
+Full_Save_Location = Save_Location[:-4] + "_full.csv"
 
 # CONSTANTS
 Hot_Water_Temp = 51
@@ -760,6 +762,10 @@ A_roof_s = (-0.66 * PF_roof ** 3) + (-0.106 * PF_roof ** 2) + (2.93 * PF_roof)  
 B_roof_s = (3.63 * PF_roof ** 3) + (-0.374 * PF_roof ** 2) + (-7.4 * PF_roof)
 C_roof_s = (-2.71 * PF_roof ** 3) + (-0.991 * PF_roof ** 2) + (4.59 * PF_roof) + 1
 
+
+f_full = open(Full_Save_Location, "w")
+f_full.write("heat_option,solar_option,pv_size,solar_thermal_size,tes_volume,tariff,operational_expenditure,capital_expenditure,net_present_cost,operational_emissions\n")
+
 # Heat pump, solar and TES technologies loops
 for HP_Option in range(2 if QUICK_RUN else 3):  # 0 = Electric Resistant Heater, 1 = ASHP, 2 = GSHP
     for Solar_Option in range(1 if QUICK_RUN else 7):  # Flat Plate, Evacuate Tube, 0=None, 1=PV, 2=FP, 3=ET, 4=FP+PV, 5=ET+PV, 6=PVT
@@ -869,46 +875,49 @@ for HP_Option in range(2 if QUICK_RUN else 3):  # 0 = Electric Resistant Heater,
                                                ("%.2f" % (Operational_Costs_Peak + Operational_Costs_Off_Peak))
                         print(Current_Options)
 
+                    if HP_Option == 0:  # Electric Heater
+                        CapEx = 100
+                        # Small additional cost to a TES, https://zenodo.org/record/4692649#.YQEbio5KjIV
+                    else:  # HP
+                        if HP_Option == 1:  # ASHP, https://pubs.rsc.org/en/content/articlepdf/2012/ee/c2ee22653g
+                            CapEx = ((200 + 4750 / ((HP_Electrical_Power * cop_worst) ** 1.25)) *
+                                     (HP_Electrical_Power * cop_worst) + 1500)  # £s
+                        else:  # GSHP, https://pubs.rsc.org/en/content/articlepdf/2012/ee/c2ee22653g
+                            CapEx = ((200 + 4750 / ((HP_Electrical_Power * cop_worst) ** 1.25)) *
+                                     (HP_Electrical_Power * cop_worst) + 800 * (HP_Electrical_Power * cop_worst))
+
+                    if Solar_Option == 1 or Solar_Option == 4 or Solar_Option == 5:  # PV panels installed
+                        if (PV_Size * 0.2) < 4.0:  # Less than 4kWp
+                            CapEx += PV_Size * 0.2 * 1100  # m2 * 0.2kWp/m2 * £1100/kWp = £
+                        else:  # Larger than 4kWp lower £/kWp
+                            CapEx += PV_Size * 0.2 * 900  # m2 * 0.2kWp/m2 * £900/kWp = £
+                    if Solar_Option >= 2:  # Solar thermal collector
+                        if Solar_Option == 2 or Solar_Option == 4:  # Flat plate solar thermal
+                            # Technology Library for collector cost https://zenodo.org/record/4692649#.YQEbio5KjIV
+                            # Rest from https://www.sciencedirect.com/science/article/pii/S0306261915010958#b0310
+                            CapEx += Solar_Thermal_Size * (225 + 270 / (9 * 1.6)) + 490 + 800 + 800
+                        elif Solar_Option == 6:  # PVT
+                            # https://www.sciencedirect.com/science/article/pii/S0306261915010958#b0310
+                            CapEx += (Solar_Thermal_Size / 1.6) * (480 + 270 / 9) + 640 + 490 + 800 + 1440
+                        else:  # Evacuated tube solar thermal
+                            # Technology Library for collector cost https://zenodo.org/record/4692649#.YQEbio5KjIV
+                            # Rest from https://www.sciencedirect.com/science/article/pii/S0306261915010958#b0310
+                            CapEx += Solar_Thermal_Size * (280 + 270 / (9 * 1.6)) + 490 + 800 + 800
+
+                    CapEx += 2068.3 * TES_Volume_Current ** 0.553
+                    # Formula based on this data https://assets.publishing.service.gov.uk/government/uploads/system/
+                    # [rest of address] uploads/attachment_data/file/545249/DELTA_EE_DECC_TES_Final__1_.pdf
+
+                    Net_Present_Cost_Current = CapEx  # £s
+                    for Year in range(NPC_Years):  # Optimum for 20 years cost
+                        Net_Present_Cost_Current += (Operational_Costs_Peak + Operational_Costs_Off_Peak) / (
+                                Discount_Rate ** Year)
+
+                    OpEx = Operational_Costs_Peak + Operational_Costs_Off_Peak
+                    f_full.write(f"{HP_Option},{Solar_Option},{PV_Size},{Solar_Thermal_Size},{TES_Volume_Current},{Tariff},{OpEx:.0f},{CapEx:.0f},{Net_Present_Cost_Current:.0f},{Operation_Emissions:.0f}\n")
+
                     if (Operational_Costs_Peak + Operational_Costs_Off_Peak) < Optimum_Tariff:  # Best for current tech
                         Optimum_Tariff = (Operational_Costs_Peak + Operational_Costs_Off_Peak)
-                        if HP_Option == 0:  # Electric Heater
-                            CapEx = 100
-                            # Small additional cost to a TES, https://zenodo.org/record/4692649#.YQEbio5KjIV
-                        else:  # HP
-                            if HP_Option == 1:  # ASHP, https://pubs.rsc.org/en/content/articlepdf/2012/ee/c2ee22653g
-                                CapEx = ((200 + 4750 / ((HP_Electrical_Power * cop_worst) ** 1.25)) *
-                                        (HP_Electrical_Power * cop_worst) + 1500)  # £s
-                            else:  # GSHP, https://pubs.rsc.org/en/content/articlepdf/2012/ee/c2ee22653g
-                                CapEx = ((200 + 4750 / ((HP_Electrical_Power * cop_worst) ** 1.25)) *
-                                        (HP_Electrical_Power * cop_worst) + 800 * (HP_Electrical_Power * cop_worst))
-
-                        if Solar_Option == 1 or Solar_Option == 4 or Solar_Option == 5:  # PV panels installed
-                            if (PV_Size * 0.2) < 4.0:  # Less than 4kWp
-                                CapEx += PV_Size * 0.2 * 1100  # m2 * 0.2kWp/m2 * £1100/kWp = £
-                            else:  # Larger than 4kWp lower £/kWp
-                                CapEx += PV_Size * 0.2 * 900  # m2 * 0.2kWp/m2 * £900/kWp = £
-                        if Solar_Option >= 2:  # Solar thermal collector
-                            if Solar_Option == 2 or Solar_Option == 4:  # Flat plate solar thermal
-                                # Technology Library for collector cost https://zenodo.org/record/4692649#.YQEbio5KjIV
-                                # Rest from https://www.sciencedirect.com/science/article/pii/S0306261915010958#b0310
-                                CapEx += Solar_Thermal_Size * (225 + 270 / (9 * 1.6)) + 490 + 800 + 800
-                            elif Solar_Option == 6:  # PVT
-                                # https://www.sciencedirect.com/science/article/pii/S0306261915010958#b0310
-                                CapEx += (Solar_Thermal_Size / 1.6) * (480 + 270 / 9) + 640 + 490 + 800 + 1440
-                            else:  # Evacuated tube solar thermal
-                                # Technology Library for collector cost https://zenodo.org/record/4692649#.YQEbio5KjIV
-                                # Rest from https://www.sciencedirect.com/science/article/pii/S0306261915010958#b0310
-                                CapEx += Solar_Thermal_Size * (280 + 270 / (9 * 1.6)) + 490 + 800 + 800
-
-                        CapEx += 2068.3 * TES_Volume_Current ** 0.553
-                        # Formula based on this data https://assets.publishing.service.gov.uk/government/uploads/system/
-                        # [rest of address] uploads/attachment_data/file/545249/DELTA_EE_DECC_TES_Final__1_.pdf
-
-                        Net_Present_Cost_Current = CapEx  # £s
-                        for Year in range(NPC_Years):  # Optimum for 20 years cost
-                            Net_Present_Cost_Current += (Operational_Costs_Peak + Operational_Costs_Off_Peak) / (
-                                    Discount_Rate ** Year)
-
                         if Net_Present_Cost_Current < Optimum_TES_NPC:  # Lowest cost TES & tariff for heating tech
                             # For OpEx vs CapEx plots, with optimised TES and tariff
                             Optimum_TES_NPC = Net_Present_Cost_Current
@@ -920,7 +929,7 @@ for HP_Option in range(2 if QUICK_RUN else 3):  # 0 = Electric Resistant Heater,
         Optimum_TES_and_Tariff_Specifications.append(Current_TES_and_Tariff_Specifications)
         # END OF HEATER LOOP
 
-
+f_full.close()
 # Gas, H2 and Biomass
 Gas_Boiler_OpEx = (Boiler_Demand_Total / 0.9) * 0.04  # 90% Boiler efficiency 4p/kWh
 # https://www.gov.uk/government/statistical-data-sets/annual-domestic-energy-price-statistics

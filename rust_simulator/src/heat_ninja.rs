@@ -2,6 +2,9 @@
 use rayon::prelude::*;
 #[cfg(not(target_family = "wasm"))]
 use std::fs;
+#[cfg(not(target_family = "wasm"))]
+use std::io::Write;
+
 #[cfg(target_family = "wasm")]
 extern crate web_sys;
 // A macro to provide `println!(..)`-style syntax for `console.log` logging.
@@ -19,6 +22,7 @@ pub struct Config {
     pub print_results_as_json: bool,
     pub save_results_as_csv: bool,
     pub save_results_as_json: bool,
+    pub save_all_nodes_as_csv: bool,
     pub save_surfaces: bool,
     pub return_format: ReturnFormat,
     pub file_index: usize,
@@ -108,6 +112,16 @@ pub fn run_simulation(
         heat_capacity,
         body_heat_gain
     */
+    #[cfg(not(target_family = "wasm"))]
+    if config.save_all_nodes_as_csv {
+        let filename = format!("tests/results/{}_full.csv", config.file_index);
+        fs::write(
+            &filename,
+            "heat_option,solar_option,pv_size,solar_thermal_size,tes_volume,tariff,\
+        operational_expenditure,capital_expenditure,net_present_cost,operational_emissions\n",
+        )
+        .expect(&format!("could not write to file: {}", &filename));
+    }
 
     let hourly_erh_thermostat_temperatures: [f32; 24] = {
         let a = thermostat_temperature;
@@ -1834,6 +1848,32 @@ pub fn run_simulation(
                 if net_present_cost < min_tariff_net_present_cost {
                     min_tariff_net_present_cost = net_present_cost;
                 } // for surface optimisation
+
+                #[cfg(not(target_family = "wasm"))]
+                if config.save_all_nodes_as_csv {
+                    let filename = format!("tests/results/{}_full.csv", config.file_index);
+                    let mut file = fs::OpenOptions::new()
+                        .write(true)
+                        .append(true)
+                        .open(&filename)
+                        .unwrap();
+
+                    file.write_fmt(format_args!(
+                        "{},{},{},{},{},{},{:.0},{:.0},{:.0},{:.0}\n",
+                        heat_option as u16,
+                        solar_option as u16,
+                        pv_size,
+                        solar_thermal_size,
+                        tes_volume,
+                        tariff as u16,
+                        operational_expenditure,
+                        capital_expenditure,
+                        net_present_cost,
+                        operational_emissions
+                    ))
+                    .expect(&format!("could not write to file: {}", filename));
+                }
+
                 if net_present_cost < min_net_present_cost {
                     // Lowest cost TES & tariff for heating tech. For OpEx vs CapEx plots, with optimised TES and tariff
                     min_net_present_cost = net_present_cost;

@@ -45,6 +45,7 @@ pub fn run_simulation(
         use_multithreading: false,
         save_results_as_csv: false,
         save_results_as_json: false,
+        save_all_nodes_as_csv: false,
         print_results_as_json: false,
         save_surfaces: false,
         file_index: 0,
