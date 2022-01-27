@@ -4,10 +4,10 @@ import cheerio from 'cheerio'
 import cors from 'cors';
 import fs from 'fs';
 // localhost
-//import { run_simulation } from "../../rust_simulator/pkg/sim_lib.js"
+import { run_simulation } from "../../rust_simulator/pkg/sim_lib.js"
 // server
 // REMOVE PERFORMANCE!
-import { run_simulation } from "./pkg/sim_lib.js";
+//import { run_simulation } from "./pkg/sim_lib.js";
 
 const API_VERSION = 0.4;
 // setup
