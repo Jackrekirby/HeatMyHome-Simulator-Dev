@@ -211,7 +211,7 @@ fn run_simulation_with_default_parameters() {
         print_results_as_csv: false,
         use_surface_optimisation: false,
         use_multithreading: false,
-        file_index: 1,
+        file_index: 9,
         save_results_as_csv: true,
         save_results_as_json: true,
         save_all_nodes_as_csv: true,
@@ -228,11 +228,11 @@ fn run_simulation_with_default_parameters() {
         house_size: 60.0,
         postcode: String::from("CV4 7AL"),
         epc_space_heating: 3000.0,
-        tes_volume_max: 3.0,
+        tes_volume_max: 0.5,
     };
 
     run_simulation(&inputs, &config);
-    run_python_simulation(&inputs, 1);
+    // run_python_simulation(&inputs, 1);
 }
 
 #[allow(dead_code)]

@@ -1203,39 +1203,48 @@ pub fn run_simulation(
             HeatOption::ElectricResistanceHeating => &hourly_erh_thermostat_temperatures,
         };
 
-        let cop_worst: f32 = match heat_option {
+        let cop_ref: f32 = match heat_option {
             HeatOption::ElectricResistanceHeating => 1.0,
             HeatOption::AirSourceHeatPump => ax2bxc(
                 0.000630,
                 -0.121,
                 6.81,
-                hot_water_temperature - coldest_outside_temperature_of_year,
+                35.0 - 7.0, // 35oC hot water temp, 7oC ambient temp
             ),
             HeatOption::GroundSourceHeatPump => ax2bxc(
                 0.000734,
                 -0.150,
                 8.77,
-                hot_water_temperature - ground_temperature,
+                35.0, // 35oC hot water temp, 0oC ambient temp
             ),
         };
 
-        let hp_electrical_power: f32 = {
-            // Mitsubishi have 4kWth ASHP, Kensa have 3kWth GSHP
-            // 7kWth Typical maximum size for domestic power
-            let mut hp_electrical_power = match heat_option {
-                HeatOption::ElectricResistanceHeating => erh_max_hourly_demand,
-                HeatOption::AirSourceHeatPump | HeatOption::GroundSourceHeatPump => {
-                    hp_max_hourly_demand / cop_worst
-                }
-            };
+        let clamp = | value:f32, min: f32, max: f32| -> f32 {
+            if value < min { min } else if value > max { max } else { value }
+        };
 
-            if hp_electrical_power * cop_worst < 4.0 {
-                hp_electrical_power = 4.0 / cop_worst;
+        // Mitsubishi have 4kWth ASHP, Kensa have 3kWth GSHP
+        // 7kWth Typical maximum size for domestic power
+        let hp_electrical_power: f32 = match heat_option {
+            HeatOption::ElectricResistanceHeating => clamp(erh_max_hourly_demand, 4.0 / cop_ref, 7.0),
+            HeatOption::AirSourceHeatPump => {
+                let cop_worst = ax2bxc(
+                    0.000630,
+                    -0.121,
+                    6.81,
+                    hot_water_temperature - coldest_outside_temperature_of_year,
+                );
+                clamp(hp_max_hourly_demand / cop_worst, 4.0 / cop_ref, 7.0)
             }
-            if hp_electrical_power > 7.0 {
-                hp_electrical_power = 7.0;
+            HeatOption::GroundSourceHeatPump => {
+                let cop_worst = ax2bxc(
+                    0.000734,
+                    -0.150,
+                    8.77,
+                    hot_water_temperature - ground_temperature,
+                );
+                clamp(hp_max_hourly_demand / cop_worst, 6.0 / cop_ref, 7.0)
             }
-            hp_electrical_power
         };
 
         let solar_size_range: u16 = match solar_option {
@@ -1265,19 +1274,21 @@ pub fn run_simulation(
             };
 
             let tes_volume: f32 = 0.1 + (tes_option as f32) * 0.1; // m3
-            let hp_electrical_power_worst: f32 = hp_electrical_power * cop_worst;
             let capital_expenditure: f32 = {
+                let hp_thermal_power: f32 = hp_electrical_power * cop_ref;
                 let capex_hp: f32 = match heat_option {
-                    HeatOption::ElectricResistanceHeating => 100.0, // Small additional cost to a TES, https://zenodo.org/record/4692649#.YQEbio5KjIV
+                    HeatOption::ElectricResistanceHeating => 1000.0 + 100.0,
+                    // £1000 cost to install ERH
+                    // £100 additional cost to a TES, https://zenodo.org/record/4692649#.YQEbio5KjIV
                     HeatOption::AirSourceHeatPump => {
-                        (200.0 + 4750.0 / hp_electrical_power_worst.powf(1.25))
-                            * hp_electrical_power_worst
+                        (200.0 + 4750.0 / hp_thermal_power.powf(1.25))
+                            * hp_thermal_power
                             + 1500.0
                     } // ASHP, https://pubs.rsc.org/en/content/articlepdf/2012/ee/c2ee22653g
                     HeatOption::GroundSourceHeatPump => {
-                        (200.0 + 4750.0 / hp_electrical_power_worst.powf(1.25))
-                            * hp_electrical_power_worst
-                            + 800.0 * hp_electrical_power_worst
+                        (200.0 + 4750.0 / hp_thermal_power.powf(1.25))
+                            * hp_thermal_power
+                            + 800.0 * hp_thermal_power
                     } // GSHP, https://pubs.rsc.org/en/content/articlepdf/2012/ee/c2ee22653g
                 };
 

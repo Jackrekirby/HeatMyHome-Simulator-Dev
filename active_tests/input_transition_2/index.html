@@ -1,0 +1,56 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="style.css" />
+    <title>Document</title>
+  </head>
+  <body>
+    <div id="slides">
+      <section>
+        <h1>Title</h1>
+        <p>Postcode</p>
+        <input type="text" id="postcode" />
+        <button class="next" onclick="show_section(1);">Next</button>
+      </section>
+
+      <section class="hide">
+        <h1>Title 2</h1>
+        <p>Address</p>
+        <input type="text" id="address" />
+        <button class="next" onclick="show_section(2);">Next</button>
+        <button class="back" onclick="show_section(0);">Back</button>
+      </section>
+
+      <section class="hide">
+        <h1>Title 3</h1>
+        <p>Temperature</p>
+        <input type="text" id="temperature" />
+        <button class="done" onclick="submit();">Done</button>
+        <button class="back" onclick="show_section(1);">Back</button>
+      </section>
+    </div>
+
+    <script>
+      let id = 0;
+      function show_section(new_id) {
+        let sections = document
+          .getElementById("slides")
+          .getElementsByTagName("section");
+
+        sections[new_id].classList.remove("hide");
+        sections[id].classList.add("hide");
+
+        sections[new_id].classList.add("fadein");
+        sections[id].classList.remove("fadein");
+
+        id = new_id;
+      }
+
+      function submit() {
+        console.log(document.getElementById("postcode").value);
+      }
+    </script>
+  </body>
+</html>
