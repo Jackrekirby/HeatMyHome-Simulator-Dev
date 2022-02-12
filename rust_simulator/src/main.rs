@@ -81,7 +81,7 @@ fn run_simulation(inputs: &Inputs, config: &heat_ninja::Config) {
         hourly_solar_irradiances_over_year,
     ) = import_file_data(String::from("assets/"), inputs.latitude, inputs.longitude);
 
-    let json_results = heat_ninja::run_simulation(
+    let _json_results = heat_ninja::run_simulation(
         inputs.thermostat_temperature,
         inputs.latitude,
         inputs.longitude,
@@ -96,9 +96,9 @@ fn run_simulation(inputs: &Inputs, config: &heat_ninja::Config) {
         &config,
     );
 
-    if config.return_format != heat_ninja::ReturnFormat::NONE {
-        println!("{}", json_results);
-    }
+    // if config.return_format != heat_ninja::ReturnFormat::NONE {
+    //     println!("{}", json_results);
+    // }
 }
 
 #[allow(dead_code)]
@@ -209,14 +209,14 @@ fn run_simulation_with_default_parameters() {
     let config: heat_ninja::Config = heat_ninja::Config {
         print_intermediates: false,
         print_results_as_csv: false,
-        use_surface_optimisation: false,
-        use_multithreading: false,
+        use_surface_optimisation: true,
+        use_multithreading: true,
         file_index: 9,
-        save_results_as_csv: true,
-        save_results_as_json: true,
-        save_all_nodes_as_csv: true,
+        save_results_as_csv: false,
+        save_results_as_json: false,
+        save_all_nodes_as_csv: false,
         print_results_as_json: false,
-        return_format: heat_ninja::ReturnFormat::JSON,
+        return_format: heat_ninja::ReturnFormat::NONE,
         save_surfaces: false,
     };
 
@@ -225,9 +225,9 @@ fn run_simulation_with_default_parameters() {
         latitude: 52.3833,
         longitude: -1.5833,
         num_occupants: 2,
-        house_size: 60.0,
+        house_size: 160.0,
         postcode: String::from("CV4 7AL"),
-        epc_space_heating: 3000.0,
+        epc_space_heating: 30000.0,
         tes_volume_max: 0.5,
     };
 
@@ -707,6 +707,7 @@ fn main() {
     println!("The current directory is {}", path.display());
     //run_simulations_using_input_file();
     //test_surfaces();
+    let now = Instant::now();
     run_simulation_with_default_parameters();
     //surf_test();
 
@@ -732,4 +733,9 @@ fn main() {
     // .expect("could not write to tests/performance.csv");
     //run_python_simulation(&inputs, 6);
     //compare_rust_and_python(&inputs, 6, &mut file);
+
+    println!(
+        "Elapsed: {} ms",
+        now.elapsed().as_millis(),
+    );
 }
