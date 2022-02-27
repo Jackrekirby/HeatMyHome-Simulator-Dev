@@ -26,6 +26,7 @@ pub fn run_simulation(
     agile_tariff_per_hour_over_year: &[f32],
     hourly_outside_temperatures_over_year: &[f32],
     hourly_solar_irradiances_over_year: &[f32],
+    enable_optimisation: bool,
 ) -> String {
     println!(
         "Inputs: {}, {}, {}, {}, {}, {}, {}, {}",
@@ -39,7 +40,7 @@ pub fn run_simulation(
         tes_volume_max
     );
 
-    const CONFIG: heat_ninja::Config = heat_ninja::Config {
+    let config: heat_ninja::Config = heat_ninja::Config {
         print_intermediates: false,
         print_results_as_csv: false,
         use_multithreading: false,
@@ -49,7 +50,7 @@ pub fn run_simulation(
         print_results_as_json: false,
         save_surfaces: false,
         file_index: 0,
-        use_surface_optimisation: true,
+        use_surface_optimisation: enable_optimisation,
         return_format: heat_ninja::ReturnFormat::JSON,
     };
 
@@ -65,6 +66,6 @@ pub fn run_simulation(
         &agile_tariff_per_hour_over_year,
         &hourly_outside_temperatures_over_year,
         &hourly_solar_irradiances_over_year,
-        &CONFIG,
+        &config,
     )
 }

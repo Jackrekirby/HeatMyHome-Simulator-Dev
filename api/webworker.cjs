@@ -5,7 +5,7 @@ let sim = undefined;
 if (SERVER) {
     sim = require("./pkg/sim_lib.js");
 } else {
-    sim = require("../../rust_simulator/pkg/sim_lib.js");
+    sim = require("../rust_simulator/pkg/sim_lib.js");
 }
 
 addEventListener('message', e => {

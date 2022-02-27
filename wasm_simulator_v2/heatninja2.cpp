@@ -742,6 +742,18 @@ namespace heatninja2 {
         }
     }
 
+    float calculate_cop_ref(const HeatOption hp_option) {
+        switch (hp_option) // hp sources: A review of domestic heat pumps
+        {
+        case HeatOption::ERH:
+            return 1;
+        case HeatOption::ASHP:
+            return ax2bxc(0.000630f, -0.121f, 6.81f, 35.0f - 7.0f); // 35oC hot water temp, 7oC ambient temp
+        default: //HeatOptions::GSHP
+            return ax2bxc(0.000734f, -0.150f, 8.77f, 35.0f); // 35oC hot water temp, 0oC ambient temp
+        }
+    }
+
     float calculate_cop_worst(const HeatOption hp_option, const int hot_water_temp, const float coldest_outside_temp, const float ground_temp) {
         switch (hp_option) // hp sources: A review of domestic heat pumps
         {
@@ -754,23 +766,24 @@ namespace heatninja2 {
         }
     }
 
-    float calculate_hp_electrical_power(const HeatOption hp_option, const float max_hourly_erh_demand, const float max_hourly_hp_demand, const float cop_worst) {
+    float clamp(float value, float min, float max) {
+        if (value < min) { return min; }
+        else if (value > max) { return max; }
+        else { return value; }
+    }
+
+    float calculate_hp_electrical_power(const HeatOption hp_option, const float max_hourly_erh_demand, const float max_hourly_hp_demand, const float cop_worst, const float cop_ref) {
         // Mitsubishi have 4kWth ASHP, Kensa have 3kWth GSHP
         // 7kWth Typical maximum size for domestic power
-        float hp_electrical_power;
         switch (hp_option)
         {
         case HeatOption::ERH:
-            hp_electrical_power = max_hourly_erh_demand;
-            break;
-        default: // ASHP or GSHP
-            hp_electrical_power = max_hourly_hp_demand / cop_worst;
-            break;
+            return clamp(max_hourly_erh_demand, 4.0f / cop_ref, 7.0f);
+        case HeatOption::ASHP:
+            return clamp(max_hourly_hp_demand / cop_worst, 4.0f / cop_ref, 7.0f);
+        default: // GSHP
+            return clamp(max_hourly_hp_demand / cop_worst, 6.0f / cop_ref, 7.0f);
         }
-
-        if (hp_electrical_power * cop_worst < 4.0f) hp_electrical_power = 4.0f / cop_worst;
-        if (hp_electrical_power > 7.0f) hp_electrical_power = 7.0f;
-        return hp_electrical_power;
     }
 
     int calculate_solar_size_range(const SolarOption solar_option, const int solar_maximum) {
@@ -838,18 +851,19 @@ namespace heatninja2 {
     void simulate_heat_solar_combination(const HeatOption hp_option, const SolarOption solar_option, const int solar_maximum, const int tes_range, const float ground_temp, HeatSolarSystemSpecifications& optimal_spec, const std::array<float, 24>& erh_hourly_temperatures_over_day, const std::array<float, 24>& hp_hourly_temperatures_over_day, const int hot_water_temperature, const float coldest_outside_temperature_of_year, const float maximum_hourly_erh_demand, const float maximum_hourly_hp_demand, const float thermostat_temperature, const float cumulative_discount_rate, const std::array<float, 12>& monthly_solar_gain_ratios_north, const std::array<float, 12>& monthly_solar_gain_ratios_south, const std::array<float, 12>& monthly_cold_water_temperatures, const std::array<float, 12>& dhw_monthly_factors, const std::array<float, 12>& monthly_solar_declinations, const std::array<float, 12>& monthly_roof_ratios_south, const std::vector<float>& hourly_outside_temperatures_over_year, const std::vector<float>& hourly_solar_irradiances_over_year, const float u_value, const float heat_capacity, const std::vector<float>& agile_tariff_per_hour_over_year, const std::array<float, 24>& hot_water_hourly_ratios, const float average_daily_hot_water_volume, const int grid_emissions, const float solar_gain_house_factor, const float body_heat_gain, const float house_size_thermal_transmittance_product) {
 
         const std::array<float, 24>& temp_profile = select_temp_profile(hp_option, hp_hourly_temperatures_over_day, erh_hourly_temperatures_over_day);
+        const float cop_ref = calculate_cop_ref(hp_option);
         const float cop_worst = calculate_cop_worst(hp_option, hot_water_temperature, coldest_outside_temperature_of_year, ground_temp);
-        const float hp_electrical_power = calculate_hp_electrical_power(hp_option, maximum_hourly_erh_demand, maximum_hourly_hp_demand, cop_worst);
+        const float hp_electrical_power = calculate_hp_electrical_power(hp_option, maximum_hourly_erh_demand, maximum_hourly_hp_demand, cop_worst, cop_ref);
         const int solar_size_range = calculate_solar_size_range(solar_option, solar_maximum);
         float optimum_tes_npc = 3.40282e+038f;
 
         // OPTIMISER ==========================================================================================
         const size_t min_step = 3;
-        float gradient_factor = 0.15f;
+        float gradient_factor = 0.2f;
         int target_step = 7;
         // user defined variables
         size_t x_size = static_cast<size_t>(tes_range), y_size = static_cast<size_t>(solar_size_range);
-        std::cout << "tes_range: " << tes_range << ", solar_size_range: " << solar_size_range << '\n';
+        //std::cout << "tes_range: " << tes_range << ", solar_size_range: " << solar_size_range << '\n';
         // only use surface optimisation for surfaces larger than 3 nodes along each dimension
         if (x_size > 3 && y_size > 3 && simulation_options.use_optimisation_surfaces) {
             // non-user variables
@@ -917,7 +931,7 @@ namespace heatninja2 {
                     if (min_z_estimate < min_z) {
                         if (di == 1 && dj == 1) { // no more subdivision possible
                             // should not be possible to reach
-                            std::cout << "UNREACHABLE!\n"; // not is the starting surface is only 2xn so the 2 wide sur
+                            //std::cout << "UNREACHABLE!\n"; // not is the starting surface is only 2xn so the 2 wide sur
                         }
                         else if (di == 1) { // rect only divisible along j
                             const size_t j12 = r.j1 + dj / 2;
@@ -988,7 +1002,7 @@ namespace heatninja2 {
         }
 
         // brute force method ====================================================================================================
-        std::cout << "Inputs dont meeting requirements for surface optimisation. Falling back to iteration.\n";
+        //std::cout << "Inputs dont meeting requirements for surface optimisation. Falling back to iteration.\n";
         for (int solar_size = 0; solar_size < solar_size_range; ++solar_size) {
             for (int tes_option = 0; tes_option < tes_range; ++tes_option) {
                 calculate_optimal_tariff(hp_option, solar_option, solar_size, optimum_tes_npc, solar_maximum, tes_option, cop_worst, hp_electrical_power, ground_temp, optimal_spec, &temp_profile, thermostat_temperature, hot_water_temperature, cumulative_discount_rate, monthly_solar_gain_ratios_north, monthly_solar_gain_ratios_south, monthly_cold_water_temperatures, dhw_monthly_factors, monthly_solar_declinations, monthly_roof_ratios_south, hourly_outside_temperatures_over_year, hourly_solar_irradiances_over_year, u_value, heat_capacity, agile_tariff_per_hour_over_year, hot_water_hourly_ratios, average_daily_hot_water_volume, grid_emissions, solar_gain_house_factor, body_heat_gain, house_size_thermal_transmittance_product);
@@ -1021,15 +1035,15 @@ namespace heatninja2 {
         }
     }
 
-    float calculate_capex_heatopt(const HeatOption hp_option, const float hp_electrical_power_worst) {
+    float calculate_capex_heatopt(const HeatOption hp_option, const float hp_thermal_power) {
         switch (hp_option)
         {
-        case HeatOption::ERH: // Small additional cost to a TES, https://zenodo.org/record/4692649#.YQEbio5KjIV
-            return 100;
+        case HeatOption::ERH: // £1000 cost to install ERH, Small additional cost to TES, https://zenodo.org/record/4692649#.YQEbio5KjIV
+            return 1000 + 100;
         case HeatOption::ASHP: // ASHP, https://pubs.rsc.org/en/content/articlepdf/2012/ee/c2ee22653g
-            return (200 + 4750 / std::powf(hp_electrical_power_worst, 1.25f)) * hp_electrical_power_worst + 1500;  // £s
+            return (200 + 4750 / std::powf(hp_thermal_power, 1.25f)) * hp_thermal_power + 1500;  // £s
         default: // GSHP, https://pubs.rsc.org/en/content/articlepdf/2012/ee/c2ee22653g
-            return (200 + 4750 / std::powf(hp_electrical_power_worst, 1.25f)) * hp_electrical_power_worst + 800 * hp_electrical_power_worst;
+            return (200 + 4750 / std::powf(hp_thermal_power, 1.25f)) * hp_thermal_power + 800 * hp_thermal_power;
         }
     }
 
@@ -1111,8 +1125,8 @@ namespace heatninja2 {
         const int solar_thermal_size = calculate_solar_thermal_size(solar_option, solar_size);
         const int pv_size = calculate_pv_size(solar_option, solar_size, solar_maximum, solar_thermal_size);
         float tes_volume_current = 0.1f + tes_option * 0.1f; // m3
-        const float hp_electrical_power_worst = hp_electrical_power * cop_worst; // hp option
-        const float capex = calculate_capex_heatopt(hp_option, hp_electrical_power_worst) + calculate_capex_pv(solar_option, pv_size) + calculate_capex_solar_thermal(solar_option, solar_thermal_size) + calculate_capex_tes_volume(tes_volume_current);
+        const float hp_thermal_power = hp_electrical_power * calculate_cop_ref(hp_option); // hp option
+        const float capex = calculate_capex_heatopt(hp_option, hp_thermal_power) + calculate_capex_pv(solar_option, pv_size) + calculate_capex_solar_thermal(solar_option, solar_thermal_size) + calculate_capex_tes_volume(tes_volume_current);
 
         const float tes_radius = std::pow((tes_volume_current / (2 * PI)), (1.0f / 3.0f));  //For cylinder with height = 2x radius
         const float tes_charge_full = tes_volume_current * 1000 * 4.18f * (hot_water_temperature - 40) / 3600; // 40 min temp

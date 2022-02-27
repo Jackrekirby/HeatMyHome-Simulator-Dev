@@ -209,15 +209,15 @@ fn run_simulation_with_default_parameters() {
     let config: heat_ninja::Config = heat_ninja::Config {
         print_intermediates: false,
         print_results_as_csv: false,
-        use_surface_optimisation: true,
         use_multithreading: true,
-        file_index: 9,
         save_results_as_csv: false,
         save_results_as_json: false,
         save_all_nodes_as_csv: false,
         print_results_as_json: false,
-        return_format: heat_ninja::ReturnFormat::NONE,
         save_surfaces: false,
+        file_index: 60,
+        use_surface_optimisation: true,
+        return_format: heat_ninja::ReturnFormat::JSON,
     };
 
     let inputs = Inputs {
@@ -225,9 +225,9 @@ fn run_simulation_with_default_parameters() {
         latitude: 52.3833,
         longitude: -1.5833,
         num_occupants: 2,
-        house_size: 160.0,
-        postcode: String::from("CV4 7AL"),
-        epc_space_heating: 30000.0,
+        house_size: 60.0,
+        postcode: String::from("CV47AL"),
+        epc_space_heating: 3000.0,
         tes_volume_max: 0.5,
     };
 
@@ -705,34 +705,12 @@ fn run_python_simulation(inputs: &Inputs, file_index: usize) {
 fn main() {
     let path = env::current_dir().expect("Could not locate current directory");
     println!("The current directory is {}", path.display());
-    //run_simulations_using_input_file();
-    //test_surfaces();
     let now = Instant::now();
+
     run_simulation_with_default_parameters();
     //surf_test();
-
-    // let inputs = Inputs {
-    //     thermostat_temperature: 20.0,
-    //     latitude: 52.3833,
-    //     longitude: -1.5833,
-    //     num_occupants: 2,
-    //     house_size: 60.0,
-    //     postcode: String::from("CV4 7AL"),
-    //     epc_space_heating: 3000.0,
-    //     tes_volume_max: 0.5,
-    // };
-
-    // let file = File::create("tests/rust_python_performance.csv")
-    //     .expect("could not open tests/rust_python_performance.csv");
-    // let mut file: LineWriter<File> = LineWriter::new(file);
-    //
-    // file.write_fmt(format_args!(
-    //     "Index,Nodes,Gain,Rust-Elapsed,Python-Elapsed,\
-    // Rust-Elapsed/Node,Python-Elapsed/Node\n"
-    // ))
-    // .expect("could not write to tests/performance.csv");
-    //run_python_simulation(&inputs, 6);
-    //compare_rust_and_python(&inputs, 6, &mut file);
+    //run_simulations_using_input_file();
+    //test_surfaces();
 
     println!(
         "Elapsed: {} ms",

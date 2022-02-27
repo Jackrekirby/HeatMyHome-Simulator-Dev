@@ -1023,6 +1023,7 @@ pub fn run_simulation(
     let grid_emissions: f32 = 212.0;
 
     if config.print_intermediates {
+        println!("config: {:?}", config);
         println!("latitude: {:?}", latitude);
         println!("thermostat_temperature: {:?}", thermostat_temperature);
         println!(

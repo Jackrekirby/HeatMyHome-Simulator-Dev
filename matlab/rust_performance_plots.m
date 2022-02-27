@@ -21,13 +21,21 @@ p = polyfit(t.Nodes, t.No_Opt_Elapsed/1000, 1)
 y1 = polyval(p,x1);
 plot(x1, y1, 'b-');
 
-p = polyfit(t.Nodes, t.Opt_Elapsed/1000, 2)
+p1 = p
+
+p = polyfit(t.Nodes, t.Opt_Elapsed/1000, 1)
 y1 = polyval(p,x1);
 plot(x1, y1, 'b-');
 
+p2 = p
+
 nodes_per_sec = 135 / 615
 
-plot(x1, x1 * nodes_per_sec, 'b-');
+1e-3 / p1(1)
+1e-3 / p2(1)
+p1(1) / p2(1)
+
+%plot(x1, x1 * nodes_per_sec, 'b-');
 
 hold off;
 grid on;

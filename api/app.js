@@ -4,7 +4,7 @@ import cheerio from 'cheerio'
 import cors from 'cors';
 import Worker from 'web-worker';
 
-const API_VERSION = 0.8;
+const API_VERSION = 0.9;
 // setup
 // npm init
 // npm i cheerio
@@ -46,10 +46,10 @@ app.get('/simulate', async (req, res) => {
         if (!undefined_parameter) {
             console.log('parameters: ', p);
 
-            if (isNaN(p.floor_area) || p.floor_area < 25 || p.floor_area > 500) {
+            if (isNaN(p.floor_area) || p.floor_area < 25 || p.floor_area > 1500) {
                 res.send({
                     'status': 404,
-                    'error': `The floor area is set to: ${p.floor_area}. This is either not a number, less than 25 m^2, or greater than 500m^2`,
+                    'error': `The floor area is set to: ${p.floor_area}. This is either not a number, less than 25 m^2, or greater than 1500m^2`,
                     'inputs': p
                 });
             } else if (isNaN(p.tes_max) || p.tes_max < 0.1 || p.tes_max > 3.0) {
@@ -59,7 +59,7 @@ app.get('/simulate', async (req, res) => {
                     'inputs': p
                 });
             } else {
-                let max_run_time = 5000;
+                let max_run_time = 30000;
                 let sim_complete = false;
 
                 const url = new URL('./webworker.cjs', import.meta.url);
@@ -80,7 +80,7 @@ app.get('/simulate', async (req, res) => {
                         worker.terminate();
                         res.send({
                             'status': 404,
-                            'error': `simulation exceed maximum runtime allowed: ${max_run_time} ms. Try a smaller TES volume or floor area.`,
+                            'error': `simulation exceeded allowed runtime: ${max_run_time} ms. Server may be busy.`,
                             'inputs': p
                         });
                     }
