@@ -36,14 +36,17 @@ nodes_per_sec = 135 / 615
 p1(1) / p2(1)
 
 %plot(x1, x1 * nodes_per_sec, 'b-');
-
+xlim([0, 3e4]);
+ylim([0, 4])
 hold off;
 grid on;
 grid minor;
 axis square;
-xlabel('No. Nodes');
-ylabel('Run Time (s)');
-title({'Surface Optimisation Performance', 'Comparison with No. Nodes'});
+xlabel('Nodes');
+ylabel('Runtime (s)');
+title('Global Optimisation Performance');
+legend(["Enabled", "Disabled", "Linear Regression"], 'location', 'northwest');
+set(gca, 'FontName', 'FixedWidth', 'FontWeight', 'Bold');
 
 %%
 clc
@@ -67,6 +70,6 @@ title('Surface Optimisation Performance');
 
 function make_fig()
     ss = get(0,'ScreenSize');
-    ssr = 600;
+    ssr = 400;
     figure('Position', [ss(3:4)/2 - ssr/2, ssr, ssr]);
 end

@@ -11,7 +11,7 @@ onmessage = function (e) {
 
 
     //submit_simulation(p.postcode, p.latitude, p.longitude, p.occupants, p['floor-area'], p.temperature, p['epc-space-heating'], p['tes-volume']);
-    submit_simulation("CV4 7AL", 52.3833, -1.5833, 2, 360.0, 20.0, 3000.0, 3.0);
+    submit_simulation("CV4 7AL", 52.3833, -1.5833, 2, 348.0, 20.0, 3000.0, 3.0);
 }
 
 function build_file_path(latitude, longitude) {
@@ -42,7 +42,7 @@ async function submit_simulation(postcode, latitude, longitude, num_occupants, h
         const solar_irradiances = await read_array(solar_irradiances_file_path);
         const result = run_simulation(thermostat_temperature, latitude, longitude, num_occupants,
             house_size, postcode, epc_space_heating, tes_volume_max, agile_tariff, outside_temps, solar_irradiances, true);
-        console.log(performance.now() - t0);
+        console.log("TIME: ", performance.now() - t0);
         postMessage(result);
     } catch (error) {
         console.error('Rust-Sim-Error: ', error);

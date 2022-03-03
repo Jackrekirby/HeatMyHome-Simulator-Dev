@@ -209,7 +209,7 @@ fn run_simulation_with_default_parameters() {
     let config: heat_ninja::Config = heat_ninja::Config {
         print_intermediates: false,
         print_results_as_csv: false,
-        use_multithreading: true,
+        use_multithreading: false,
         save_results_as_csv: false,
         save_results_as_json: false,
         save_all_nodes_as_csv: false,
@@ -225,10 +225,10 @@ fn run_simulation_with_default_parameters() {
         latitude: 52.3833,
         longitude: -1.5833,
         num_occupants: 2,
-        house_size: 60.0,
+        house_size: 348.0,
         postcode: String::from("CV47AL"),
         epc_space_heating: 3000.0,
-        tes_volume_max: 0.5,
+        tes_volume_max: 3.0,
     };
 
     run_simulation(&inputs, &config);
@@ -707,7 +707,7 @@ fn main() {
     println!("The current directory is {}", path.display());
     let now = Instant::now();
 
-    run_simulation_with_default_parameters();
+     run_simulation_with_default_parameters();
     //surf_test();
     //run_simulations_using_input_file();
     //test_surfaces();
