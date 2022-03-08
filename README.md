@@ -4,9 +4,9 @@ This repository was used to develop the heating simulator for the [HeatMyHome.ni
 In summary, the website simulates a range of domestic heating systems alongside solar photovoltaic and solar thermal technologies to optimise the system configuration and estimate the operation costs, capital costs and operating emissions for each of the technologies simulated. It takes as input the user's location and home details to find the optimal heating system unique to the user's circumstances.
 
 
-The GitHub repository for HeatMyHome can be found at [here](https://github.com/heatmyhome-ninja/HeatMyHome-Website). The repository used to develop the HeatMyHome user interface can be found [here](https://github.com/Jackrekirby/heat_ninja_ui). The final simulation code along with API, and user interface can be found at the HeatMyHome repository. However this repository contains additional raw files, and one can go back through the commit history to view its progression. 
+The GitHub repository for HeatMyHome can be found at [here](https://github.com/heatmyhome-ninja/HeatMyHome-Website). The repository used to develop the HeatMyHome user interface can be found [here](https://github.com/Jackrekirby/HeatMyHome-UI-Dev). The final simulation code along with API, and user interface can be found at the HeatMyHome repository. However this repository contains additional raw files, and one can go back through the commit history to view its progression. 
 
-A debug UI is used to interface with the simulator, which can be found [here](https://jackrekirby.github.io/Heating-Simulator/). If you wish to try the simulator with autofilled parameters click [here](https://jackrekirby.github.io/Heating-Simulator/?autofill=2).
+A debug UI is used to interface with the simulator, which can be found [here](https://jackrekirby.github.io/HeatMyHome-Simulator-Dev/). If you wish to try the simulator with autofilled parameters click [here](https://jackrekirby.github.io/HeatMyHome-Simulator-Dev/?autofill=2).
 
 Here is a guide to the folder structure:
 * `active_tests` contains any tests that are currently ongoing. Once a test has been completed, either because it failed, or has been implemented into the design is transferred to the `archive` folder.
