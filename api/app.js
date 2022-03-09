@@ -4,7 +4,7 @@ import cheerio from 'cheerio'
 import cors from 'cors';
 import Worker from 'web-worker';
 
-const API_VERSION = 0.9;
+const API_VERSION = 1.0;
 // setup
 // npm init
 // npm i cheerio
@@ -19,7 +19,7 @@ const app = express();
 // app.use(cors());
 
 app.use(cors({
-    origin: ['https://heatmyhome.ninja', 'https://jackrekirby.github.io/HeatMyHome-Simulator-Dev/']
+    origin: ['https://heatmyhome.ninja', 'https://jackrekirby.github.io']
 }));
 
 // ==============================================================================================================================

@@ -12,7 +12,6 @@
     "sim_lib.js",
     "sim_lib.d.ts"
   ],
-  "module": "sim_lib.js",
-  "types": "sim_lib.d.ts",
-  "sideEffects": false
+  "main": "sim_lib.js",
+  "types": "sim_lib.d.ts"
 }

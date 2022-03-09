@@ -1275,7 +1275,7 @@ pub fn run_simulation(
             };
 
             let tes_volume: f32 = 0.1 + (tes_option as f32) * 0.1; // m3
-            println!("TESVOLUME {}", tes_volume);
+            // println!("TESVOLUME {}", tes_volume);
             let capital_expenditure: f32 = {
                 let hp_thermal_power: f32 = hp_electrical_power * cop_ref;
                 let capex_hp: f32 = match heat_option {

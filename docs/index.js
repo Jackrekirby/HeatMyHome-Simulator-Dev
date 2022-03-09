@@ -82,8 +82,8 @@ let npc_years = 20;
 let cumulative_discount_rate = calculate_cumulative_discount_rate(discount_rate, npc_years);
 
 // const api_url = 'http://heatmyhomeninja-env.eba-w2gamium.us-east-2.elasticbeanstalk.com';
-const api_url = 'http://localhost:3000';
-//const api_url = 'https://customapi.heatmyhome.ninja';
+// const api_url = 'http://localhost:3000';
+const api_url = 'https://customapi.heatmyhome.ninja';
 const epc_api_url = api_url + '/epc';
 const simulate_api_url = api_url + '/simulate';
 
