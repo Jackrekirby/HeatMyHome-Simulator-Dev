@@ -46,7 +46,7 @@ xlabel('Nodes');
 ylabel('Runtime (s)');
 title('Global Optimisation Performance');
 legend(["Enabled", "Disabled", "Linear Regression"], 'location', 'northwest');
-set(gca, 'FontName', 'FixedWidth', 'FontWeight', 'Bold');
+set(gca, 'FontName', 'FixedWidth', 'FontWeight', 'Bold', 'FontSize', 12);
 
 %%
 clc
@@ -70,6 +70,6 @@ title('Surface Optimisation Performance');
 
 function make_fig()
     ss = get(0,'ScreenSize');
-    ssr = 400;
+    ssr = 420;
     figure('Position', [ss(3:4)/2 - ssr/2, ssr, ssr]);
 end

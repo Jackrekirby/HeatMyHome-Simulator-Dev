@@ -40,13 +40,14 @@ for w = 463
                 pp = [pp1(1); pp2];
                 legend(pp, ["Searched Nodes", "Global Minimum"], "location", "northeast");
                 %title(sprintf('Surface: %i', w));
-                set(gca, 'FontName', 'FixedWidth', 'FontWeight', 'Bold')
+                set(gca, 'FontName', 'FixedWidth', 'FontWeight', 'Bold', 'FontSize', 12)
                 ylabel("TES Size (m^3)");
                 xlabel("Solar Size (m^2)");
-                zlabel("Lifetime Cost (£1000's)");
+                zlabel({'Lifetime Cost','(£1000''s)'});
                 view([45, 30]);
                 set(get(gca,'xlabel'),'rotation',-20); %where angle is in degrees
                 set(get(gca,'ylabel'),'rotation',20); %where angle is in degrees
+                %set(gcf, 'color', 'none'); set(gca, 'color', 'none');
                 i = i + 1;
                 %saveas(gcf,sprintf("rust_images/%i.png", i));
                 if length(w) > 1

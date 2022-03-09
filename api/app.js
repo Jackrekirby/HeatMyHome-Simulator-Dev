@@ -16,7 +16,11 @@ const API_VERSION = 0.9;
 // "type": "module",
 
 const app = express();
-app.use(cors());
+// app.use(cors());
+
+app.use(cors({
+    origin: ['https://heatmyhome.ninja', 'https://jackrekirby.github.io/HeatMyHome-Simulator-Dev/']
+}));
 
 // ==============================================================================================================================
 // SIMULATE API
