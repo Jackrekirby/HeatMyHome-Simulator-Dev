@@ -6,7 +6,7 @@ In summary, the website simulates a range of domestic heating systems alongside 
 
 The GitHub repository for HeatMyHome can be found at [here](https://github.com/heatmyhome-ninja/HeatMyHome-Website). The repository used to develop the HeatMyHome user interface can be found [here](https://github.com/Jackrekirby/HeatMyHome-UI-Dev). The final simulation code along with API, and user interface can be found at the HeatMyHome repository. However this repository contains additional raw files, and one can go back through the commit history to view its progression. 
 
-A debug UI is used to interface with the simulator, which can be found [here](https://jackrekirby.github.io/HeatMyHome-Simulator-Dev/). If you wish to try the simulator with autofilled parameters click [here](https://jackrekirby.github.io/HeatMyHome-Simulator-Dev/?autofill=2).
+A debug UI is used to interface with the simulator, which can be found [here](https://jackrekirby.github.io/HeatMyHome-Simulator-Dev/). If you wish to try the simulator with autofilled parameters, using the EPC fetching click [here](https://jackrekirby.github.io/HeatMyHome-Simulator-Dev/?autofill=1), and without EPC fetching [here](https://jackrekirby.github.io/HeatMyHome-Simulator-Dev/?autofill=2)
 
 Here is a guide to the folder structure:
 * `active_tests` contains any tests that are currently ongoing. Once a test has been completed, either because it failed, or has been implemented into the design is transferred to the `archive` folder.
